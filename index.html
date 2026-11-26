@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作業繳交看板</title>
+<meta name="theme-color" content="#2453C2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ground:#F3F4F6; --surface:#FFFFFF; --ink:#16181D; --muted:#5B616E; --line:#E2E5EA; --line2:#D3D7DE;
+    --accent:#2453C2; --accent-dark:#1A3D91;
+    --miss-ink:#9C3A17; --miss-line:#B4471F; --miss-bg:#FDF1EC;
+    --sub:#1D6B50; --tc:#F2B33D; --tc-line:#D9971C; --tc-ink:#3A2700; --tc-text:#7A5300; --cor:#2453C2;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,"Microsoft JhengHei",sans-serif;-webkit-tap-highlight-color:transparent}
+  button,input{font-family:inherit;font-size:inherit;color:inherit}
+  button{cursor:pointer}
+  .hidden{display:none !important}
+
+  /* ---------- 座號格（兩種畫面共用） ---------- */
+  .seat{border-radius:12px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0;aspect-ratio:1/1;border:2px solid transparent;user-select:none;transition:transform .12s, outline-color .3s}
+  .seat:active{transform:scale(.9)}
+  .s-miss{background:#fff;color:var(--miss-ink);border:2px dashed var(--miss-line)}
+  .s-sub{background:var(--sub);color:#fff;border-color:var(--sub)}
+  .s-tc{background:var(--tc);color:var(--tc-ink);border-color:var(--tc-line)}
+  .s-cor{background:var(--cor);color:#fff;border-color:var(--cor)}
+  .s-leave{background:#E5E7EB;color:#5B616E;border:2px solid #C9CED6}
+  .fresh{outline:5px solid var(--tc);outline-offset:3px}
+
+  /* ---------- 教師畫面 ---------- */
+  .t-header{background:var(--surface);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;position:sticky;top:0;z-index:5}
+  .t-title{margin-right:auto;display:flex;flex-direction:column}
+  .t-title h1{margin:0;font-size:20px;font-weight:900}
+  .t-title span{font-size:13px;color:var(--muted)}
+  .datenav{display:flex;align-items:center;gap:2px;background:var(--ground);border-radius:12px;padding:4px}
+  .iconbtn{width:44px;height:44px;border:0;background:transparent;border-radius:9px;display:flex;align-items:center;justify-content:center}
+  .iconbtn:hover{background:#E8EAEE}
+  .datebox{position:relative;text-align:center;min-width:120px;padding:0 6px}
+  .datebox b{display:block;font-size:17px}
+  .datebox small{font-size:12px;color:var(--muted)}
+  .datebox input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+  .seg{display:flex;gap:4px;background:var(--ground);border-radius:12px;padding:4px}
+  .seg button{height:40px;padding:0 14px;border-radius:9px;border:0;background:transparent;color:var(--muted);font-weight:700;font-size:14px}
+  .seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .sync{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--sub)}
+  .dot.bad{background:var(--miss-line)}
+
+  .t-main{padding:16px 16px 90px;max-width:1500px;margin:0 auto;display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+  .cards{flex:999 1 560px;min-width:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .card-head{display:flex;align-items:center;gap:8px}
+  .card-head h2{margin:0;font-size:19px;font-weight:900;flex:1;min-width:0;overflow-wrap:anywhere}
+  .card-head .done{font-size:13px;color:var(--muted);white-space:nowrap}
+  .bar{display:flex;height:8px;border-radius:999px;overflow:hidden;background:var(--ground)}
+  .grid10{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+  .grid10 .seat{font-size:14px;min-height:30px}
+  .counts{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;font-weight:700}
+  .c-miss{color:var(--miss-ink)} .c-tc{color:var(--tc-text)} .c-sub{color:var(--sub)} .c-cor{color:var(--cor)}
+  .card-tools{display:flex;flex-wrap:wrap;gap:6px}
+  .small{height:36px;padding:0 12px;border-radius:9px;border:1px solid var(--line2);background:#fff;font-size:13px;font-weight:700}
+  .small.danger{color:var(--miss-ink);border-color:#E9B8A5}
+
+  .leave-strip{flex:1 1 100%;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
+  .diary-list{margin:0;padding-left:1.4em;font-size:15px;line-height:1.7}
+  .leave-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+  .leave-grid button{height:48px;border-radius:10px;border:2px solid var(--line2);background:#fff;font-weight:700;font-size:16px}
+  .leave-grid button[aria-pressed="true"]{background:#5B616E;color:#fff;border-color:#5B616E}
+  .tool-block{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid #EEF0F3}
+  .tool-block:last-of-type{border-bottom:0;padding-bottom:0}
+  .tool-block b{font-size:15px}
+  .tool-row{display:flex;flex-wrap:wrap;gap:6px}
+  .tool-row .small{height:40px;min-width:56px}
+  .timer-big{font-size:34px;font-weight:900;font-variant-numeric:tabular-nums}
+  .check{display:flex;align-items:center;gap:8px;font-size:14px}
+  .check input{width:20px;height:20px}
+  .tabs button{min-width:84px}
+  .leave-strip.due{background:#F7F9FE;border-color:#D5DEF5;line-height:1.6}
+  .diary-main{flex-direction:column;align-items:stretch;max-width:760px}
+  .due-strip{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.7}
+  .dblock{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .dblock.off{opacity:.55}
+  .dblock-head{color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .dblock-head h2{margin:0;font-size:17px;font-weight:900;letter-spacing:.04em}
+  .dblock-head span{font-size:13px;font-weight:700}
+  .dblock-body{padding:4px 14px 12px}
+  .ditem{display:flex;align-items:center;gap:8px;min-height:48px;border-bottom:1px solid #EEF0F3}
+  .ditem-text{flex:1;min-width:0;text-align:left;background:none;border:0;font-size:16px;padding:8px 0;min-height:44px;line-height:1.5;overflow-wrap:anywhere}
+  .grade{flex:none;width:44px;height:36px;border-radius:9px;border:2px solid var(--line2);background:#fff;font-weight:900;font-size:15px;color:var(--muted)}
+  .grade[aria-pressed="true"]{background:var(--sub);border-color:var(--sub);color:#fff}
+  .exam-tag{flex:none;font-size:12px;font-weight:900;padding:2px 7px;border-radius:6px;background:var(--tc);color:var(--tc-ink)}
+  .del{flex:none;width:40px;height:40px;border:0;background:transparent;color:var(--muted);border-radius:9px;display:flex;align-items:center;justify-content:center}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:10px}
+  .chip{height:38px;padding:0 12px;border-radius:999px;border:1px solid var(--line2);background:#fff;font-size:14px;font-weight:700}
+  .chip.ghost{border-style:dashed}
+  .dactions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .lay-row{display:flex;flex-direction:column;gap:8px;padding:10px 0;border-bottom:1px solid #EEF0F3}
+  .lay-top{display:flex;align-items:center;gap:8px}
+  .lay-top b{flex:1;font-size:15px}
+  .lay-dot{width:14px;height:14px;border-radius:50%;flex:none}
+  .lay-size{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:var(--ground);border-radius:10px;padding:3px}
+  .lay-size button{height:34px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-weight:700;font-size:13px}
+  .lay-size button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .side{flex:1 1 300px;min-width:280px;display:flex;flex-direction:column;gap:16px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .panel h2{margin:0;font-size:17px;font-weight:900}
+  .sum-item{padding-bottom:10px;border-bottom:1px solid #EEF0F3;font-size:14px;line-height:1.6}
+  .btn{height:48px;border-radius:12px;border:0;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;text-decoration:none}
+  .btn-dark{background:var(--ink);color:#fff}
+  .btn-blue{background:var(--accent);color:#fff}
+  .btn-blue:hover{background:var(--accent-dark)}
+  .btn-line{background:#fff;color:var(--ink);border:1px solid var(--line2)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
+  .switch{width:56px;height:32px;border-radius:999px;border:0;background:#C9CED6;position:relative;flex:none}
+  .switch::after{content:"";position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .15s}
+  .switch[aria-checked="true"]{background:var(--sub)}
+  .switch[aria-checked="true"]::after{left:28px}
+
+  .offday{flex:1 1 100%;max-width:640px;margin:40px auto;background:#fff;border:1px solid var(--line);border-radius:20px;padding:36px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+  .offday h2{margin:0;font-size:22px}
+  .offday p{margin:0;color:var(--muted);line-height:1.7}
+  .empty{grid-column:1/-1;background:#fff;border:2px dashed var(--line2);border-radius:16px;padding:32px;text-align:center;color:var(--muted)}
+
+  .legend{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));z-index:6;display:flex;flex-wrap:wrap;justify-content:center;gap:6px 16px;font-size:13px;font-weight:700;color:var(--muted)}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:4px;display:inline-block}
+
+  @media (max-width:640px){
+    .grid10{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+    .grid10 .seat{font-size:16px}
+    .cards{grid-template-columns:1fr}
+    .t-header{gap:10px}
+    .seg{width:100%} .seg button{flex:1}
+    .datenav{flex:1}
+    .datebox{flex:1}
+  }
+
+  /* ---------- 對話框與提示 ---------- */
+  .modal{position:fixed;inset:0;background:rgba(22,24,29,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+  .dialog{background:#fff;border-radius:18px;width:100%;max-width:560px;max-height:90vh;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+  .dialog h2{margin:0;font-size:19px}
+  .form{display:grid;grid-template-columns:90px 1fr 1fr;gap:10px}
+  .form label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:var(--muted)}
+  .form input{height:46px;border:1px solid var(--line2);border-radius:10px;padding:0 10px;font-size:16px;color:var(--ink);width:100%}
+  @media (max-width:520px){.form{grid-template-columns:1fr 1fr}.form label:first-child{grid-column:1/-1}}
+  .result{background:var(--ground);border-radius:12px;padding:14px;font-size:14px;line-height:1.8;white-space:pre-line}
+  .dialog-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  textarea.copybox{width:100%;min-height:180px;border:1px solid var(--line2);border-radius:10px;padding:10px;font-size:14px;line-height:1.6}
+  .toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-weight:700;font-size:14px;z-index:30;max-width:90vw;text-align:center}
+
+  /* ---------- 教室大螢幕 ----------
+     所有尺寸都以 rem 為單位；程式會自動調整整頁字級，讓畫面剛好塞進螢幕、不需捲動。 */
+  html.display-mode{overflow:hidden}
+  .d-wrap{--seat:3.4rem;--gap:.5rem;padding:1.2rem 1.6rem;display:flex;flex-direction:column;gap:1rem}
+  .d-head{display:flex;align-items:center;gap:1.5rem}
+  .d-head h1{margin:0;font-size:2.4rem;font-weight:900;line-height:1.2}
+  .d-head .sub{font-size:1.15rem;color:var(--muted);font-weight:500}
+  .d-sync{margin-left:auto;background:#fff;border:1px solid var(--line);border-radius:.9rem;padding:.7rem 1rem;display:flex;align-items:center;gap:.8rem}
+  .d-sync .dot{width:.8rem;height:.8rem;box-shadow:0 0 0 .3rem #D7EDE4}
+  .d-sync .dot.bad{box-shadow:0 0 0 .3rem #F6DCD1}
+  .d-sync b{display:block;font-size:1rem}
+  .d-sync small{font-size:.85rem;color:var(--muted)}
+  .d-cards{display:flex;flex-wrap:wrap;justify-content:center;gap:1.2rem}
+  .d-card{--cols:6;--rows:5;width:calc(var(--cols) * var(--seat) + (var(--cols) - 1) * var(--gap) + 2.4rem);background:#fff;border:1px solid var(--line);border-radius:1.2rem;padding:1.2rem;display:flex;flex-direction:column;gap:.8rem}
+  .d-card-head{display:flex;align-items:baseline;justify-content:space-between;gap:.8rem}
+  .d-card h2{margin:0;font-size:1.7rem;font-weight:900;line-height:1.25;overflow-wrap:anywhere}
+  .d-card .done{font-size:1rem;color:var(--muted);font-weight:700;white-space:nowrap}
+  .d-grid{display:grid;grid-template-columns:repeat(var(--cols),var(--seat));gap:var(--gap)}
+  .seat-gap{width:var(--seat);height:var(--seat)}
+  .d-podium{text-align:center;font-size:.85rem;font-weight:700;color:var(--muted);background:var(--ground);border-radius:.4rem;padding:.15rem 0;letter-spacing:.4em}
+  .d-announce{background:var(--accent);color:#fff;border-radius:1rem;padding:.8rem 1.4rem;font-size:1.7rem;font-weight:900;display:flex;align-items:center;gap:1rem}
+  .d-announce svg{flex:none;width:1.8rem;height:1.8rem}
+  .d-tool{position:fixed;inset:0;background:rgba(22,24,29,.6);display:flex;align-items:center;justify-content:center;z-index:10}
+  .d-tool-card{background:#fff;border-radius:4vmin;padding:4vmin 9vmin;text-align:center;min-width:55vmin}
+  .d-tool-label{font-size:4.5vmin;color:var(--muted);font-weight:700}
+  .d-tool-big{font-size:24vmin;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+  .d-tool-sub{font-size:4.5vmin;color:var(--muted);font-weight:700}
+  .timeup .d-tool-big{color:var(--miss-ink);animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.3}}
+  .d-hint{font-size:.8rem;color:var(--muted)}
+  .d-grid .seat{width:var(--seat);height:var(--seat);font-size:calc(var(--seat) * .42);font-weight:900;border-radius:.7rem;border-width:3px}
+  .d-counts{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;font-size:1rem;font-weight:700}
+  .d-private{height:calc(var(--rows) * var(--seat) + (var(--rows) - 1) * var(--gap));display:flex;flex-direction:column;justify-content:center;gap:1.2rem}
+  .d-private .bar{height:1.2rem}
+  .d-private .big{font-size:3rem;font-weight:900;text-align:center}
+  .d-private .big span{font-size:1.4rem;color:var(--muted);font-weight:500}
+  .d-foot{display:flex;flex-wrap:wrap;align-items:center;gap:1.5rem;font-size:.95rem;color:var(--muted)}
+  .d-foot .sw{width:1rem;height:1rem;border-radius:.25rem}
+  .d-zoom{margin-left:auto;display:flex;gap:.4rem;align-items:center;font-size:.8rem}
+  .d-zoom button{width:2rem;height:2rem;border-radius:.5rem;border:1px solid var(--line2);background:#fff;color:var(--muted);font-size:1rem;font-weight:700;line-height:1;padding:0}
+  .d-diary{background:#fff;border:1px solid var(--line);border-radius:1.2rem;padding:1.6rem 2.4rem}
+  .d-diary ol{margin:0;padding-left:2.2em;font-size:2.2rem;font-weight:700;line-height:1.7}
+  .d-diary li::marker{color:var(--accent);font-weight:900}
+  .dd-wrap{height:100vh;box-sizing:border-box;padding:1.3rem 1.8rem;display:flex;flex-direction:column;gap:.75rem}
+  .dd-head{display:flex;align-items:flex-end;gap:1.4rem;flex:none}
+  .dd-head h1{margin:0;font-size:2.8rem;font-weight:900;line-height:1;letter-spacing:.04em}
+  .dd-head .date{font-size:2.8rem;font-weight:900;color:var(--ink);line-height:1;letter-spacing:.02em}
+  .dd-head .week{font-size:2.8rem;font-weight:900;line-height:1;color:#fff;background:var(--accent);border-radius:.6rem;padding:.15em .45em}
+  .dd-head .cls{margin-left:auto;background:#fff;border:1px solid var(--line);border-radius:.8rem;padding:.5rem 1rem;font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:.6rem}
+  .dd-head .dot{width:.7rem;height:.7rem;box-shadow:0 0 0 .25rem #D7EDE4}
+  .dd-head .d-zoom{margin-left:0}
+  .dd-nav{width:2.6rem;height:2.6rem;flex:none;align-self:center;border:1px solid var(--line2);background:#fff;border-radius:.6rem;display:flex;align-items:center;justify-content:center;color:var(--ink);padding:0}
+  .dd-nav svg{width:1.3rem;height:1.3rem}
+  .dd-nav:disabled{opacity:.3;cursor:default}
+  .dd-today{align-self:center;height:2.6rem;padding:0 1rem;border:0;border-radius:.6rem;background:var(--tc);color:var(--tc-ink);font-size:1.1rem;font-weight:900}
+  .dd-rows{flex:1;min-height:0;display:flex;flex-direction:column;gap:.7rem}
+  .dd-row{min-height:0;display:flex;background:#fff;border:1px solid var(--line);border-radius:1rem;overflow:hidden}
+  .dd-label{width:17vw;flex:none;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:.3rem .7rem;box-sizing:border-box;overflow:hidden;font-weight:900;letter-spacing:.06em;line-height:1.2}
+  .dd-label span{display:block;word-break:keep-all}
+  .dd-list{flex:1;min-width:0;padding:.4rem 1.6rem;overflow:hidden;display:flex;align-items:center}
+  .dd-inner{list-style:none;margin:0;padding:0;width:100%;display:flex;flex-direction:column;gap:.35em}
+  .dd-inner li{display:flex;align-items:flex-start;gap:.5em;font-weight:700;line-height:1.4}
+  .dd-num{flex:none;width:1.25em;height:1.25em;margin-top:.08em;border-radius:50%;font-size:.8em;font-weight:900;display:flex;align-items:center;justify-content:center}
+  .dd-exam{flex:none;margin-top:.2em;font-size:.62em;font-weight:900;line-height:1;padding:.3em .5em;border-radius:.4em;background:var(--tc);color:var(--tc-ink)}
+  .dd-text{overflow-wrap:anywhere}
+  .dd-text.exam{font-weight:900;color:#7A3510}
+  .dd-empty{color:var(--muted);font-weight:500;font-size:.55em}
+  .d-off{padding:4rem 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center}
+  .d-off h2{margin:0;font-size:3rem;font-weight:900}
+  .d-off p{margin:0;font-size:1.4rem;color:var(--muted)}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="data.js"></script>
+</head>
+<body>
+<div id="app"><div style="padding:40px;text-align:center;color:#5B616E">載入中…</div></div>
+
+<script>
+var PARAMS = new URLSearchParams(location.search);
+var VIEW = PARAMS.get('view') === 'display' || PARAMS.get('view') === 'diary' ? 'display' : 'teacher';
+var DIARY_ONLY = PARAMS.get('view') === 'diary';
+document.title = DIARY_ONLY ? '聯絡簿' : VIEW === 'display' ? '作業看板' : '作業繳交看板';
+var STATUSES = ['未交', '已交', '待訂正', '已訂正'];
+var KEY = { '未交': 'miss', '已交': 'sub', '待訂正': 'tc', '已訂正': 'cor', '請假': 'leave' };
+var WEEK = '日一二三四五六';
+
+var state = null;       // 伺服器回傳的當天資料
+var rev = '';           // 資料版本，用來判斷要不要重讀
+var date = todayStr();
+var pending = 0;        // 正在送出的修改數；送出期間不覆蓋畫面，避免閃回舊狀態
+var polling = false;
+var lastFull = 0;
+var syncOk = true;
+var fresh = {};         // 剛變動的座號 → 時間，用於大螢幕的黃框提示
+var manualDate = false;
+
+/* ---------- 工具 ---------- */
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function fmt(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function parse(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+function todayStr() { return fmt(new Date()); }
+function niceDate(s) { var d = parse(s); return (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日'; }
+function weekday(s) { return '星期' + WEEK.charAt(parse(s).getDay()); }
+function shortDate(s) { var d = parse(s); return (d.getMonth() + 1) + '/' + d.getDate() + '（' + WEEK.charAt(d.getDay()) + '）'; }
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function call(fn) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  try { return Promise.resolve(API[fn].apply(null, args)); } catch (e) { return Promise.reject(e); }
+}
+function errMsg(e) {
+  if (e && /permission_denied|PERMISSION_DENIED/i.test(e.code || e.message || '')) return '這個帳號沒有權限修改資料。';
+  return (e && e.message) ? e.message.replace(/^Exception:\s*/, '') : '發生錯誤，請稍後再試。';
+}
+function toast(msg) {
+  var t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status');
+  document.body.appendChild(t);
+  setTimeout(function () { t.remove(); }, 2600);
+}
+function seatStatus(a, i) { return (state.leave || []).indexOf(i + 1) >= 0 ? '請假' : a.seats[i]; }
+function stats(a) {
+  var c = { '未交': [], '已交': [], '待訂正': [], '已訂正': [], '請假': [] };
+  a.seats.forEach(function (s, i) { c[seatStatus(a, i)].push(i + 1); });
+  return c;
+}
+function countsHtml(c, cls) {
+  return '<div class="' + cls + '"><span class="c-miss">未交 ' + c['未交'].length + '</span><span class="c-tc">待訂正 ' + c['待訂正'].length +
+    '</span><span class="c-sub">已交 ' + c['已交'].length + '</span><span class="c-cor">已訂正 ' + c['已訂正'].length + '</span>' +
+    (c['請假'].length ? '<span style="color:var(--muted)">請假 ' + c['請假'].length + '</span>' : '') + '</div>';
+}
+function diaryLines(t) { return String(t || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean); }
+function barHtml(c, size) {
+  var w = function (k) { return (c[k].length / size * 100).toFixed(2) + '%'; };
+  return '<div class="bar" aria-hidden="true">' +
+    '<div style="width:' + w('已交') + ';background:var(--sub)"></div>' +
+    '<div style="width:' + w('已訂正') + ';background:var(--cor)"></div>' +
+    '<div style="width:' + w('待訂正') + ';background:var(--tc)"></div></div>';
+}
+function swatch(k) {
+  var m = { '未交': 'background:#fff;border:2px dashed var(--miss-line)', '已交': 'background:var(--sub)', '待訂正': 'background:var(--tc)', '已訂正': 'background:var(--cor)', '請假': 'background:#E5E7EB;border:2px solid #C9CED6' };
+  return '<span class="sw" aria-hidden="true" style="' + m[k] + ';box-sizing:border-box"></span>';
+}
+var ICON = {
+  left: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+  right: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>',
+  plus: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  copy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>'
+};
+
+/* 複製文字：Apps Script 網頁在 iframe 內，剪貼簿可能被瀏覽器擋下，失敗時改跳出文字框讓使用者手動複製 */
+function copyText(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  ta.remove();
+  if (ok) { toast('已複製，可以貼到 LINE'); return; }
+  openModal('<h2>請手動複製</h2><textarea class="copybox" readonly>' + esc(text) + '</textarea>' +
+    '<div class="dialog-actions"><button class="btn btn-line" onclick="closeModal()">關閉</button></div>');
+  var box = document.querySelector('.copybox'); box.focus(); box.select();
+}
+function openModal(inner) {
+  closeModal();
+  var m = document.createElement('div');
+  m.className = 'modal'; m.id = 'modal';
+  m.innerHTML = '<div class="dialog" role="dialog" aria-modal="true">' + inner + '</div>';
+  m.addEventListener('click', function (e) { if (e.target === m) closeModal(); });
+  document.body.appendChild(m);
+}
+function closeModal() { var m = document.getElementById('modal'); if (m) m.remove(); }
+
+/* ---------- 同步：Firebase 一有變動就重新組畫面（不再定時詢問） ---------- */
+var refreshQueued = false;
+function scheduleRefresh() {
+  if (refreshQueued) return;
+  refreshQueued = true;
+  setTimeout(function () { refreshQueued = false; refresh(); }, 30);
+}
+function refresh() {
+  if (!DB || denied) return;
+  watchDay(date);
+  if (!ready(date)) return;
+  syncDue(date, todayStr());
+  var r = buildState(date);
+  markFresh(state, r);
+  state = r;
+  render();
+}
+function poll() { scheduleRefresh(); }   // 舊程式呼叫的名稱，保留相容
+/* 大螢幕：沒有手動切日期時，過了午夜自動換到新的一天；手動切換 5 分鐘沒動作就回到今天 */
+setInterval(function () {
+  if (VIEW !== 'display') return;
+  if (manualDate && Date.now() - lastNavAt > 5 * 60 * 1000) manualDate = false;
+  if (!manualDate && date !== todayStr()) { date = todayStr(); state = null; render(); scheduleRefresh(); }
+}, 20000);
+function markFresh(oldS, newS) {
+  if (!oldS || oldS.date !== newS.date) return;
+  var now = Date.now();
+  newS.assignments.forEach(function (a) {
+    var o = null;
+    oldS.assignments.forEach(function (x) { if (x.row === a.row && x.title === a.title) o = x; });
+    if (!o) return;
+    a.seats.forEach(function (s, i) { if (o.seats[i] !== s) fresh[a.title + '|' + (i + 1)] = now; });
+  });
+  setTimeout(render, 8100);
+}
+function isFresh(title, seat) { var t = fresh[title + '|' + seat]; return t && Date.now() - t < 8000; }
+function updateSync() {
+  var d = document.querySelectorAll('.dot');
+  for (var i = 0; i < d.length; i++) d[i].className = 'dot' + (syncOk ? '' : ' bad');
+  var l = document.getElementById('sync-label');
+  if (l) l.textContent = syncOk ? '即時同步中' : '連線中斷，重試中…';
+}
+
+/* ---------- 倒數計時與抽籤的畫面更新（每 0.1 秒） ---------- */
+var clockOffset = 0;      // 伺服器時間與本機時間的差距
+var lastPickAt = null, rollUntil = 0, beepedFor = null, audioCtx = null;
+function remainingMs(t) { return t.end ? t.end - (Date.now() + clockSkew) : (t.left || 0); }
+function fmtTime(ms) {
+  if (ms <= 0) return '時間到！';
+  var sec = Math.ceil(ms / 1000);
+  return pad(Math.floor(sec / 60)) + ':' + pad(sec % 60);
+}
+function tick() {
+  if (!state || !state.tool) return;
+  var t = state.tool;
+  if (t.type === 'timer') {
+    var ms = remainingMs(t);
+    var els = document.querySelectorAll('.timer-left');
+    for (var i = 0; i < els.length; i++) els[i].textContent = fmtTime(ms);
+    var ov = document.querySelector('.d-tool');
+    if (ov) ov.classList.toggle('timeup', ms <= 0);
+    if (VIEW === 'display' && ms <= 0 && t.end && beepedFor !== t.end) { beepedFor = t.end; beep(); }
+  }
+  if (t.type === 'pick') {
+    var el = document.getElementById('pick-num');
+    if (el) el.textContent = Date.now() < rollUntil ? pad(1 + Math.floor(Math.random() * state.size)) : pad(t.seat);
+  }
+}
+setInterval(tick, 100);
+/* 瀏覽器規定要先點過畫面才能發出聲音：大螢幕點一下任何地方即可啟用提示音 */
+function beep() {
+  if (!audioCtx) return;
+  [0, 0.35, 0.7].forEach(function (d) {
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.25, audioCtx.currentTime + d);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d + 0.3);
+    o.start(audioCtx.currentTime + d); o.stop(audioCtx.currentTime + d + 0.3);
+  });
+}
+if (VIEW === 'display') {
+  document.addEventListener('click', function () {
+    if (audioCtx) return;
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); toast('提示音已啟用'); render(); } catch (e) {}
+  });
+}
+
+
+/* ---------- 教師畫面的操作 ---------- */
+function goDay(offset) { var d = parse(date); d.setDate(d.getDate() + offset); setDate(fmt(d)); }
+function setDate(s) { if (!s) return; date = s; manualDate = true; state = null; render(); scheduleRefresh(); }
+/* 寫入：Firebase 會先在本機套用、再送到雲端，順序由同一條連線保證，不會互相覆蓋 */
+function write(fn, args, okMsg) {
+  return call.apply(null, [fn].concat(args)).then(function (r) {
+    if (okMsg) toast(okMsg);
+    if (r && r.warning) openModal('<h2>提醒</h2><p style="margin:0;line-height:1.7">' + esc(r.warning) + '</p>' +
+      '<div class="dialog-actions"><button class="btn btn-dark" onclick="closeModal()">知道了</button></div>');
+    return r;
+  }).catch(function (e) {
+    toast(errMsg(e));
+    scheduleRefresh();
+  });
+}
+function tap(ai, seat) {
+  var a = state.assignments[ai];
+  if (state.leave.indexOf(seat) >= 0) { toast(seat + ' 號今天請假，請先在「登記請假」取消'); return; }
+  var cur = a.seats[seat - 1];
+  // 依序切換：未交 → 點1下已交 → 點2下待訂正 → 點3下已訂正 → 點4下回到未交
+  var next = STATUSES[(STATUSES.indexOf(cur) + 1) % STATUSES.length];
+  a.seats[seat - 1] = next;
+  render();
+  write('setStatus', [date, a.row, a.title, seat, next]);
+}
+function setDayType(t) { state.day = { type: t, auto: false }; render(); write('setDayType', [date, t]); }
+function addAssignment() {
+  var name = prompt('作業名稱：', '');
+  if (name && name.trim()) write('addAssignment', [date, name.trim()], '已新增「' + name.trim() + '」');
+}
+function renameAssignment(ai) {
+  var a = state.assignments[ai];
+  var name = prompt('修改作業名稱：', a.title);
+  if (name && name.trim() && name.trim() !== a.title) write('renameAssignment', [date, a.row, a.title, name.trim()]);
+}
+function deleteAssignment(ai) {
+  var a = state.assignments[ai];
+  if (confirm('確定要刪除「' + a.title + '」？這一列紀錄會從試算表中移除。')) write('deleteAssignment', [date, a.row, a.title], '已刪除');
+}
+function allSubmitted(ai) {
+  var a = state.assignments[ai];
+  if (confirm('將「' + a.title + '」全班標記為「已交」？')) {
+    a.seats = a.seats.map(function () { return '已交'; }); render();
+    write('setAll', [date, a.row, a.title, '已交']);
+  }
+}
+/* ---------- 請假 ---------- */
+function openLeave() {
+  openModal('<h2>登記今日請假</h2><p style="margin:0;color:var(--muted);font-size:14px">點座號切換請假。請假的學生今天所有作業都不算未交，區間追蹤也不會計入。</p>' +
+    '<div class="leave-grid" id="leave-grid"></div>' +
+    '<div class="dialog-actions"><button class="btn btn-dark" onclick="closeModal()">完成</button></div>');
+  renderLeaveGrid();
+}
+function renderLeaveGrid() {
+  var g = document.getElementById('leave-grid');
+  if (!g) return;
+  var h = '';
+  for (var n = 1; n <= state.size; n++) {
+    h += '<button aria-pressed="' + (state.leave.indexOf(n) >= 0) + '" aria-label="' + n + ' 號請假" onclick="toggleLeaveSeat(' + n + ')">' + pad(n) + '</button>';
+  }
+  g.innerHTML = h;
+}
+function toggleLeaveSeat(n) {
+  var on = state.leave.indexOf(n) < 0;
+  state.leave = on ? state.leave.concat([n]).sort(function (a, b) { return a - b; }) : state.leave.filter(function (x) { return x !== n; });
+  renderLeaveGrid(); render();
+  write('toggleLeave', [date, n, on]);
+}
+
+/* ---------- 聯絡簿 ---------- */
+function openDiary() {
+  openModal('<h2>編輯今日聯絡簿</h2><p style="margin:0;color:var(--muted);font-size:14px">一行寫一項，大螢幕會自動加上編號。</p>' +
+    '<textarea class="copybox" id="diary-text" placeholder="例如：&#10;數學習作 p.32–33&#10;國語第五課生字各寫一行&#10;明天帶美勞用具">' + esc(state.diary) + '</textarea>' +
+    '<button class="btn btn-line" onclick="fillDiary()">帶入今天的作業名稱</button>' +
+    '<div class="dialog-actions"><button class="btn btn-line" onclick="closeModal()">取消</button>' +
+    '<button class="btn btn-blue" onclick="saveDiary()">儲存</button></div>');
+  document.getElementById('diary-text').focus();
+}
+function fillDiary() {
+  var box = document.getElementById('diary-text');
+  var have = diaryLines(box.value);
+  var add = state.assignments.map(function (a) { return a.title; }).filter(function (t) {
+    return !have.some(function (l) { return l.indexOf(t) === 0; });
+  });
+  if (!add.length) { toast('作業名稱都已經在聯絡簿裡了'); return; }
+  box.value = have.concat(add).join('\n');
+  box.focus();
+}
+function saveDiary() {
+  var text = document.getElementById('diary-text').value;
+  state.diary = diaryLines(text).join('\n');
+  closeModal(); render();
+  write('setDiary', [date, state.diary], '聯絡簿已儲存');
+}
+/* ---------- 大螢幕工具（教師端） ---------- */
+var pickNoRepeat = true;
+function toolPanel() {
+  var t = state.tool;
+  var h = '<section class="panel"><h2>大螢幕工具</h2>';
+  h += '<div class="tool-block"><b>公告列</b><span style="font-size:14px;color:' + (state.announce ? 'var(--ink)' : 'var(--muted)') + '">' +
+    (state.announce ? esc(state.announce) : '目前沒有公告') + '</span>' +
+    '<div class="tool-row"><button class="small" onclick="openAnnounce()">' + (state.announce ? '修改公告' : '發布公告') + '</button>' +
+    (state.announce ? '<button class="small danger" onclick="saveAnnounce(\'\')">清除</button>' : '') + '</div></div>';
+
+  h += '<div class="tool-block"><b>倒數計時</b>';
+  if (t && t.type === 'timer') {
+    h += '<span class="timer-big timer-left">' + fmtTime(remainingMs(t)) + '</span><div class="tool-row">' +
+      (t.end ? '<button class="small" onclick="timer(\'pause\')">暫停</button>' : '<button class="small" onclick="timer(\'resume\')">繼續</button>') +
+      '<button class="small danger" onclick="timer(\'stop\')">結束並關閉</button></div>';
+  } else {
+    h += '<div class="tool-row">' + [1, 3, 5, 10].map(function (m) {
+      return '<button class="small" onclick="timer(\'start\',' + (m * 60) + ')">' + m + ' 分</button>';
+    }).join('') + '<button class="small" onclick="customTimer()">自訂</button></div>';
+  }
+  h += '</div>';
+
+  h += '<div class="tool-block"><b>隨機抽人</b>' +
+    (t && t.type === 'pick' ? '<span style="font-size:15px">大螢幕顯示：<b style="font-size:22px">' + t.seat + ' 號</b></span>' : '') +
+    '<div class="tool-row"><button class="small" style="background:var(--ink);color:#fff;border-color:var(--ink)" onclick="pickOne()">抽一位</button>' +
+    (t && t.type === 'pick' ? '<button class="small" onclick="closeTool()">關閉抽籤畫面</button>' : '') + '</div>' +
+    '<label class="check"><input type="checkbox" ' + (pickNoRepeat ? 'checked' : '') + ' onchange="pickNoRepeat=this.checked">今天不重複抽（已抽 ' + state.picked.length + ' 人）</label>' +
+    (state.picked.length ? '<div class="tool-row"><button class="small" onclick="resetPicked()">重設抽籤紀錄</button></div>' : '') +
+    '</div>';
+  h += '<span style="font-size:13px;color:var(--muted)">大螢幕的格子排列，請到「工具」→「班級設定」修改座位表。請假的學生不會被抽到。</span></section>';
+  return h;
+}
+function openAnnounce() {
+  openModal('<h2>大螢幕公告</h2><p style="margin:0;color:var(--muted);font-size:14px">公告會一直顯示在大螢幕上方，直到你清除為止（最多 80 字）。</p>' +
+    '<input id="ann-text" maxlength="80" style="height:48px;border:1px solid var(--line2);border-radius:10px;padding:0 12px;font-size:16px" value="' + esc(state.announce) + '" placeholder="例如：放學前交數學習作">' +
+    '<div class="dialog-actions"><button class="btn btn-line" onclick="closeModal()">取消</button><button class="btn btn-blue" onclick="saveAnnounce(document.getElementById(\'ann-text\').value)">發布</button></div>');
+  document.getElementById('ann-text').focus();
+}
+function saveAnnounce(text) {
+  text = String(text || '').trim();
+  state.announce = text; closeModal(); render();
+  write('setAnnouncement', [text], text ? '公告已發布' : '公告已清除');
+}
+function timer(action, seconds) { write('toolTimer', [action, seconds || 0]); }
+function customTimer() {
+  var m = prompt('倒數幾分鐘？（可以輸入小數，例如 1.5）', '2');
+  if (m == null) return;
+  var sec = Math.round(parseFloat(m) * 60);
+  if (!(sec >= 5)) { toast('請輸入正確的分鐘數'); return; }
+  timer('start', sec);
+}
+function pickOne() {
+  call('toolPick', date, pickNoRepeat).then(function (r) {
+    toast('抽到 ' + r.seat + ' 號' + (r.restarted ? '（全班都抽過了，已重新開始）' : ''));
+  }).catch(function (e) { toast(errMsg(e)); });
+}
+function resetPicked() { write('toolResetPicked', [], '抽籤紀錄已重設'); }
+function closeTool() { write('toolClose', []); }
+
+/* ---------- 大螢幕工具（顯示端） ---------- */
+function layoutOf() {
+  if (state.layout && state.layout.length) {
+    var cols = state.layout[0].length;
+    return { cols: cols, rows: state.layout.length, cells: [].concat.apply([], state.layout) };
+  }
+  var cells = [];
+  for (var n = 1; n <= state.size; n++) cells.push(n);
+  return { cols: 6, rows: Math.ceil(state.size / 6), cells: cells };
+}
+function toolOverlay() {
+  if (!state || !state.tool) return '';
+  var t = state.tool;
+  if (t.type === 'timer') {
+    var ms = remainingMs(t);
+    return '<div class="d-tool' + (ms <= 0 ? ' timeup' : '') + '" role="timer"><div class="d-tool-card"><div class="d-tool-label">' +
+      (t.end ? '倒數計時' : '暫停中') + '</div><div class="d-tool-big timer-left">' + fmtTime(ms) + '</div></div></div>';
+  }
+  if (t.type === 'pick') {
+    if (t.at !== lastPickAt) {
+      var fresh = lastPickAt !== null || (Date.now() + clockSkew - t.at) < 5000;
+      lastPickAt = t.at;
+      rollUntil = fresh ? Date.now() + 1600 : 0;
+    }
+    return '<div class="d-tool" role="status"><div class="d-tool-card"><div class="d-tool-label">抽到的是</div>' +
+      '<div class="d-tool-big" id="pick-num">' + pad(t.seat) + '</div><div class="d-tool-sub">號</div></div></div>';
+  }
+  return '';
+}
+
+function setDisplayMode(m) { state.displayMode = m; render(); write('setDisplayMode', [m], '大螢幕已切換為「' + m + '」'); }
+
+function togglePrivacy() { state.privacy = !state.privacy; render(); write('setPrivacy', [state.privacy]); }
+function summaryText() {
+  var d = parse(date);
+  var lines = ['【' + (d.getMonth() + 1) + '/' + d.getDate() + ' 作業未交／待訂正】'];
+  var any = false;
+  if (state.leave.length) lines.push('（請假：' + state.leave.join('、') + ' 號）');
+  state.assignments.forEach(function (a) {
+    var c = stats(a);
+    if (!c['未交'].length && !c['待訂正'].length) return;
+    any = true;
+    lines.push('■ ' + a.title);
+    if (c['未交'].length) lines.push('  未交：' + c['未交'].join('、') + ' 號');
+    if (c['待訂正'].length) lines.push('  待訂正：' + c['待訂正'].join('、') + ' 號');
+  });
+  if (!any) lines.push('今天全班作業都完成了！');
+  return lines.join('\n');
+}
+function openTrack() {
+  openModal('<h2>個人區間追蹤</h2>' +
+    '<div class="form">' +
+      '<label>座號<input id="tr-seat" type="number" min="1" max="' + state.size + '" value="1" inputmode="numeric"></label>' +
+      '<label>開始日期<input id="tr-start" type="date" value="' + mondayOf(date) + '"></label>' +
+      '<label>結束日期<input id="tr-end" type="date" value="' + date + '"></label>' +
+    '</div>' +
+    '<button class="btn btn-blue" onclick="runTrack()">開始查詢</button>' +
+    '<div id="tr-out"></div>' +
+    '<div class="dialog-actions"><button class="btn btn-line" onclick="closeModal()">關閉</button></div>');
+}
+function mondayOf(s) { var d = parse(s); var w = (d.getDay() + 6) % 7; d.setDate(d.getDate() - w); return fmt(d); }
+var lastTrackText = '';
+function runTrack() {
+  var seat = document.getElementById('tr-seat').value;
+  var start = document.getElementById('tr-start').value;
+  var end = document.getElementById('tr-end').value;
+  var out = document.getElementById('tr-out');
+  out.innerHTML = '<p style="color:var(--muted)">查詢中…</p>';
+  call('rangeTrack', seat, start, end).then(function (r) {
+    var list = function (arr) { return arr.length ? arr.map(function (x) { return shortDate(x.date) + ' ' + x.title; }).join('\n') : '無'; };
+    lastTrackText = '【' + r.seat + ' 號 作業補交提醒】\n期間：' + shortDate(r.start) + '～' + shortDate(r.end) +
+      '\n\n未交（' + r.missing.length + ' 項）：\n' + list(r.missing) +
+      '\n\n待訂正（' + r.toCorrect.length + ' 項）：\n' + list(r.toCorrect);
+    out.innerHTML =
+      '<div class="counts" style="font-size:15px"><span class="c-miss">累積未交 ' + r.missing.length + ' 項</span>' +
+      '<span class="c-tc">仍待訂正 ' + r.toCorrect.length + ' 項</span>' +
+      '<span style="color:var(--muted)">請假 ' + r.leaveDays.length + ' 天（不列入計算）</span>' +
+      '<span style="color:var(--muted)">已略過停課日 ' + r.skipped + ' 天</span></div>' +
+      '<div class="result" style="margin-top:10px">' + esc(lastTrackText) + '</div>' +
+      '<button class="btn btn-dark" style="margin-top:10px;width:100%" onclick="copyText(lastTrackText)">' + ICON.copy + '複製通知文字</button>';
+  }).catch(function (e) { out.innerHTML = '<p style="color:var(--miss-ink)">' + esc(errMsg(e)) + '</p>'; });
+}
+
+
+/* ---------- 聯絡簿（教師端） ---------- */
+var EXAM_RE = /考|測驗/;
+var NO_GRADE_RE = /考|測驗|背|預習|複習/;
+var tab = 'board';
+try { if (localStorage.getItem('tab') === 'diary') tab = 'diary'; } catch (e) {}
+function setTab(t) { tab = t; try { localStorage.setItem('tab', t); } catch (e) {} render(); window.scrollTo(0, 0); }
+function blockByName(n) { var r = null; (state.blocks || []).forEach(function (b) { if (b.name === n) r = b; }); return r; }
+function itemById(id) { var r = null; state.items.forEach(function (it) { if (it.id === id) r = it; }); return r; }
+var X_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+function renderDiaryEditor() {
+  var h = '<main class="t-main diary-main">';
+  h += '<div class="due-strip">這一天勾選 <span class="grade" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:24px;background:var(--sub);border-color:var(--sub);color:#fff;font-size:13px;vertical-align:middle">批</span> 的作業，會在 <b>' +
+    (state.dueOn ? shortDate(state.dueOn) : '下一個上課日') + '</b> 自動出現在繳交看板。點文字可以修改。</div>';
+  var known = {};
+  state.blocks.forEach(function (b, bi) {
+    known[b.name] = true;
+    var items = state.items.filter(function (it) { return it.block === b.name; });
+    h += '<section class="dblock' + (b.show ? '' : ' off') + '">' +
+      '<div class="dblock-head" style="background:' + b.color + '"><h2>' + esc(b.name) + '</h2><span>' + (b.show ? items.length + ' 項' : '大螢幕不顯示') + '</span></div>' +
+      '<div class="dblock-body">';
+    items.forEach(function (it) {
+      h += '<div class="ditem">' + (EXAM_RE.test(it.text) ? '<span class="exam-tag">考試</span>' : '') +
+        '<button class="ditem-text" onclick="editItem(\'' + it.id + '\')">' + esc(it.text) + '</button>' +
+        (b.type === '科目' ? '<button class="grade" aria-pressed="' + it.grade + '" aria-label="' + (it.grade ? '要批改，點一下取消' : '不批改，點一下改成要批改') + '" onclick="toggleGrade(\'' + it.id + '\')">批</button>' : '') +
+        '<button class="del" aria-label="刪除這一項" onclick="delItem(\'' + it.id + '\')">' + X_ICON + '</button></div>';
+    });
+    h += '<div class="chips">' + b.quick.map(function (q, qi) {
+      return '<button class="chip" onclick="addItem(' + bi + ',' + qi + ')">＋ ' + esc(q) + '</button>';
+    }).join('') + '<button class="chip ghost" onclick="addItem(' + bi + ',-1)">＋ 自己輸入</button></div></div></section>';
+  });
+  var orphans = state.items.filter(function (it) { return !known[it.block]; });
+  if (orphans.length) {
+    h += '<section class="dblock"><div class="dblock-head" style="background:#4A505C"><h2>其他（區塊已被刪除）</h2></div><div class="dblock-body">' +
+      orphans.map(function (it) {
+        return '<div class="ditem"><span class="ditem-text">' + esc(it.block + '：' + it.text) + '</span><button class="del" aria-label="刪除這一項" onclick="delItem(\'' + it.id + '\')">' + X_ICON + '</button></div>';
+      }).join('') + '</div></section>';
+  }
+  h += '<div class="dactions">' +
+    '<button class="btn btn-line" onclick="copyPrev()">複製 ' + (state.dueFrom ? shortDate(state.dueFrom) : '前一天') + ' 的內容</button>' +
+    '<button class="btn btn-dark" onclick="copyText(diaryText())">' + ICON.copy + '複製 LINE 通知</button>' +
+    '<button class="btn btn-line" onclick="openLayout()">大螢幕版面設定</button>' +
+    '<button class="btn btn-line" onclick="setDisplayMode(\'' + (state.displayMode === '聯絡簿' ? '作業看板' : '聯絡簿') + '\')">大螢幕改顯示' + (state.displayMode === '聯絡簿' ? '作業看板' : '聯絡簿') + '</button>' +
+    '</div></main>';
+  return h;
+}
+function addItem(bi, qi) {
+  var b = state.blocks[bi];
+  var text = prompt('新增到「' + b.name + '」：', qi >= 0 ? b.quick[qi] + ' ' : '');
+  if (text == null || !text.trim()) return;
+  text = text.trim().replace(/\s+/g, ' ');
+  state.items.push({ id: 'tmp' + Date.now(), block: b.name, text: text, grade: b.type === '科目' && !NO_GRADE_RE.test(text) });
+  render();
+  write('addDiaryItem', [date, b.name, text]);
+}
+function editItem(id) {
+  var it = itemById(id);
+  if (!it || id.indexOf('tmp') === 0) return;
+  var text = prompt('修改內容：', it.text);
+  if (text == null || !text.trim() || text.trim() === it.text) return;
+  it.text = text.trim().replace(/\s+/g, ' ');
+  render();
+  write('updateDiaryItem', [id, it.text]);
+}
+function delItem(id) {
+  var it = itemById(id);
+  if (!it || id.indexOf('tmp') === 0) return;
+  if (!confirm('刪除「' + it.text + '」？')) return;
+  state.items = state.items.filter(function (x) { return x.id !== id; });
+  render();
+  write('deleteDiaryItem', [id]);
+}
+function toggleGrade(id) {
+  var it = itemById(id);
+  if (!it || id.indexOf('tmp') === 0) return;
+  it.grade = !it.grade;
+  render();
+  write('setDiaryGrade', [id, it.grade], it.grade ? '「' + it.text + '」設為要批改' : '「' + it.text + '」設為不批改');
+}
+function copyPrev() {
+  if (!state.dueFrom) return;
+  if (!confirm('把 ' + shortDate(state.dueFrom) + ' 聯絡簿的內容複製到今天？（相同的項目會略過）')) return;
+  write('copyDiary', [state.dueFrom, date]).then(function (r) { if (r && r.count) toast('已複製 ' + r.count + ' 項'); });
+}
+function diaryText() {
+  var lines = ['【' + shortDate(date) + ' 聯絡簿】'];
+  state.blocks.forEach(function (b) {
+    var items = state.items.filter(function (it) { return it.block === b.name; });
+    if (!items.length) return;
+    lines.push('', '■ ' + b.name);
+    items.forEach(function (it, i) { lines.push((i + 1) + '. ' + it.text); });
+  });
+  if (lines.length === 1) lines.push('今天沒有聯絡簿內容。');
+  return lines.join('\n');
+}
+
+/* 大螢幕版面設定 */
+function openLayout() {
+  openModal('<h2>大螢幕版面設定</h2><p style="margin:0;color:var(--muted);font-size:14px;line-height:1.6">區塊由上到下排列，每一列的高度依項目數自動分配。字級選「自動」會依區塊大小自動調整；選大、中、小則固定，但仍不會超出區塊。</p>' +
+    '<div id="layout-body"></div>' +
+    '<div class="dialog-actions"><button class="btn btn-line" onclick="newBlock()">＋ 新增區塊</button><button class="btn btn-dark" onclick="closeModal()">完成</button></div>');
+  renderLayout();
+}
+function renderLayout() {
+  var box = document.getElementById('layout-body');
+  if (!box) return;
+  box.innerHTML = state.blocks.map(function (b, i) {
+    return '<div class="lay-row"><div class="lay-top"><span class="lay-dot" style="background:' + b.color + '"></span><b>' + esc(b.name) + '</b>' +
+      '<button class="iconbtn" aria-label="往上移" ' + (i === 0 ? 'disabled' : '') + ' onclick="layMove(' + i + ',-1)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>' +
+      '<button class="iconbtn" aria-label="往下移" ' + (i === state.blocks.length - 1 ? 'disabled' : '') + ' onclick="layMove(' + i + ',1)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>' +
+      '<button class="switch" role="switch" aria-label="在大螢幕顯示' + esc(b.name) + '" aria-checked="' + b.show + '" onclick="layShow(' + i + ')"></button></div>' +
+      '<div class="tool-row"><button class="small" onclick="layQuick(' + i + ')">常用項目' + (b.quick.length ? '（' + b.quick.length + '）' : '') + '</button>' +
+      '<button class="small danger" onclick="layDelete(' + i + ')">刪除區塊</button></div>' +
+      '<div class="lay-size" role="group" aria-label="' + esc(b.name) + '的字級">' + ['自動', '大', '中', '小'].map(function (z) {
+        return '<button aria-pressed="' + (b.size === z) + '" onclick="laySize(' + i + ',\'' + z + '\')">' + z + '</button>';
+      }).join('') + '</div></div>';
+  }).join('');
+}
+function layMove(i, d) {
+  var j = i + d; if (j < 0 || j >= state.blocks.length) return;
+  var b = state.blocks[i]; state.blocks[i] = state.blocks[j]; state.blocks[j] = b;
+  renderLayout(); render();
+  write('moveBlock', [b.name, d]);
+}
+function layShow(i) { var b = state.blocks[i]; b.show = !b.show; renderLayout(); render(); write('setBlock', [b.name, 'show', b.show]); }
+function laySize(i, z) { var b = state.blocks[i]; b.size = z; renderLayout(); render(); write('setBlock', [b.name, 'size', z]); }
+function layQuick(i) {
+  var b = state.blocks[i];
+  var v = prompt('「' + b.name + '」的常用項目（用頓號「、」分隔）：', b.quick.join('、'));
+  if (v == null) return;
+  var list = v.split(/[、,，]/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 12);
+  b.quick = list; renderLayout(); render();
+  write('setBlock', [b.name, 'quick', list], '常用項目已更新');
+}
+function layDelete(i) {
+  var b = state.blocks[i];
+  var used = state.items.filter(function (it) { return it.block === b.name; }).length;
+  if (!confirm('刪除「' + b.name + '」區塊？' + (used ? '\n今天這個區塊有 ' + used + ' 項內容，刪除後會改列在「其他」。' : '') + '\n以前的聯絡簿內容不會被刪除。')) return;
+  write('deleteBlock', [b.name], '已刪除「' + b.name + '」').then(function () { setTimeout(renderLayout, 300); });
+}
+function newBlock() {
+  var name = prompt('新區塊名稱（例如：自然、社會）：', '');
+  if (!name || !name.trim()) return;
+  var remind = confirm('「' + name.trim() + '」是科目嗎？\n按「確定」＝科目（可以設定批改）\n按「取消」＝提醒類（攜帶物品、通知等，不批改）');
+  write('addBlock', [name.trim(), remind ? '科目' : '提醒'], '已新增區塊「' + name.trim() + '」').then(function () { setTimeout(renderLayout, 300); });
+}
+
+
+/* ---------- 大螢幕：由上到下的聯絡簿 ---------- */
+/* 週次：從「設定」分頁的「第一週的星期一」起算，每週一換週 */
+function weekNo(s) {
+  if (!state || !state.weekStart) return 0;
+  var d = parse(s), start = parse(state.weekStart);
+  d.setDate(d.getDate() - (d.getDay() + 6) % 7);   // 這一週的星期一
+  var n = Math.round((d - start) / 86400000 / 7) + 1;
+  return n >= 1 ? n : 0;
+}
+/* 大螢幕切換日期：跳過週六日，不會超過今天；5 分鐘沒動作自動回到今天 */
+var lastNavAt = 0;
+function displayGo(step) {
+  var d = parse(date);
+  do { d.setDate(d.getDate() + step); } while (d.getDay() === 0 || d.getDay() === 6);
+  var s = fmt(d);
+  if (s > todayStr()) return;
+  date = s; manualDate = s !== todayStr(); lastNavAt = Date.now();
+  state = null; render(); scheduleRefresh();
+}
+function displayToday() { date = todayStr(); manualDate = false; state = null; render(); scheduleRefresh(); }
+function renderDiaryScreen() {
+  var zoomCtl = '<span class="d-zoom"><button aria-label="縮小" onclick="zoom(-0.1)">－</button><button aria-label="放大" onclick="zoom(0.1)">＋</button></span>';
+  var isToday = date === todayStr();
+  var h = '<div class="dd-wrap"><header class="dd-head"><h1>聯絡簿</h1>' +
+    '<button class="dd-nav" aria-label="前一個上課日" onclick="displayGo(-1)">' + ICON.left + '</button>' +
+    '<div class="date">' + niceDate(date) + ' ' + weekday(date) + '</div>' +
+    '<button class="dd-nav" aria-label="下一個上課日" onclick="displayGo(1)"' + (isToday ? ' disabled' : '') + '>' + ICON.right + '</button>' +
+    (weekNo(date) ? '<div class="week">第 ' + weekNo(date) + ' 週</div>' : '') +
+    (isToday ? '' : '<button class="dd-today" onclick="displayToday()">回到今天</button>') +
+    '<div class="cls"><span class="dot"></span><span id="sync-label" class="hidden"></span>' + esc(state && state.className ? state.className : '') + '</div>' + zoomCtl + '</header>';
+  if (state && state.announce) {
+    h += '<div class="d-announce" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>' + esc(state.announce) + '</div>';
+  }
+  if (!state) return h + '<div class="d-off"><p>載入中…</p></div></div>';
+  if (state.day.type === '停課') return h + '<div class="d-off"><h2>' + (isToday ? '今天' : '這一天') + '是停課日</h2><p>' + (isToday ? '好好休息！' : '按左右箭頭查看其他天') + '</p></div></div>';
+  var blocks = state.blocks.filter(function (b) { return b.show; });
+  if (!state.items.length || !blocks.length) return h + '<div class="d-off"><h2>' + (isToday ? '今天的聯絡簿還沒有內容' : '這一天沒有聯絡簿內容') + '</h2><p>' + (isToday ? '老師填寫後，這裡會自動出現。' : '按左右箭頭查看其他天') + '</p></div></div>';
+
+  h += '<div class="dd-rows">';
+  blocks.forEach(function (b) {
+    var items = state.items.filter(function (it) { return it.block === b.name; });
+    var weight = items.length ? items.length + 0.8 : 0.55;
+    h += '<section class="dd-row" style="flex:' + weight + ' 1 0"><div class="dd-label" style="background:' + b.color + '"><span>' + esc(b.name).replace(/[・、\/]/g, '$&<wbr>') + '</span></div>' +
+      '<div class="dd-list" data-size="' + b.size + '"><ol class="dd-inner">';
+    if (!items.length) h += '<li class="dd-empty">' + (isToday ? '今天沒有' : '這天沒有') + '</li>';
+    items.forEach(function (it, i) {
+      var exam = EXAM_RE.test(it.text);
+      h += '<li><span class="dd-num" aria-hidden="true" style="background:' + b.color + '1F;color:' + b.color + '">' + (i + 1) + '</span>' +
+        (exam ? '<span class="dd-exam">考試</span>' : '') +
+        '<span class="dd-text' + (exam ? ' exam' : '') + '">' + esc(it.text) + '</span></li>';
+    });
+    h += '</ol></div></section>';
+  });
+  return h + '</div></div>';
+}
+/* 每一列各自找出「放得下所有項目」的最大字級；大／中／小只是設定上限 */
+function fitDiary() {
+  var root = document.documentElement;
+  root.classList.add('display-mode');
+  root.style.fontSize = (window.innerHeight / 54 * Math.max(userZoom, 0.8)).toFixed(2) + 'px';
+  var cap = { '自動': 0.07, '大': 0.055, '中': 0.045, '小': 0.035 };
+  // 科目名稱：在色塊內盡量放大（最大約為畫面高度的 9%），名稱長的會自動換行或縮小
+  var labels = document.querySelectorAll('.dd-label');
+  for (var j = 0; j < labels.length; j++) {
+    var lb = labels[j], sp = lb.querySelector('span');
+    var lmax = Math.min(window.innerHeight * 0.09 * userZoom, lb.clientHeight * 0.8);
+    var lfits = function (px) {
+      lb.style.fontSize = px + 'px';
+      return sp.offsetHeight <= lb.clientHeight - 6 && sp.scrollWidth <= lb.clientWidth - 12;
+    };
+    var a = 10, z = Math.max(lmax, 10);
+    if (lfits(z)) a = z; else for (var k2 = 0; k2 < 14; k2++) { var m2 = (a + z) / 2; if (lfits(m2)) a = m2; else z = m2; }
+    lb.style.fontSize = Math.floor(a * 0.96) + 'px';
+  }
+  var lists = document.querySelectorAll('.dd-list');
+  for (var i = 0; i < lists.length; i++) {
+    var box = lists[i], inner = box.querySelector('.dd-inner');
+    var max = window.innerHeight * (cap[box.getAttribute('data-size')] || 0.07) * userZoom;
+    var fits = function (px) {
+      box.style.fontSize = px + 'px';
+      return inner.offsetHeight <= box.clientHeight - 2 && inner.scrollWidth <= inner.clientWidth + 1;
+    };
+    var lo = 8, hi = max;
+    if (fits(hi)) { lo = hi; } else {
+      for (var k = 0; k < 14; k++) { var mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; }
+    }
+    box.style.fontSize = Math.floor(lo * 0.97) + 'px';
+  }
+}
+
+/* ---------- 畫面繪製 ---------- */
+function render() {
+  var app = document.getElementById('app');
+  var gate = gateHtml();
+  if (gate) { app.innerHTML = gate; return; }
+  app.innerHTML = VIEW === 'display' ? renderDisplay() + toolOverlay() : renderTeacher();
+  tick();
+  updateSync();
+  if (VIEW === 'display') fitAll();
+}
+function isDiaryScreen() { return DIARY_ONLY || (state && state.displayMode === '聯絡簿'); }
+function fitAll() { if (document.querySelector('.dd-wrap')) fitDiary(); else fitDisplay(); }
+
+/* ---------- 大螢幕自動縮放：找出「剛好塞滿螢幕又不需捲動」的最大字級 ---------- */
+var userZoom = 1;   // 老師手動微調的倍率（0.5～1），存在這台電腦的瀏覽器裡
+try { var z = parseFloat(localStorage.getItem('displayZoom')); if (z >= 0.5 && z <= 1) userZoom = z; } catch (e) {}
+
+function fitDisplay() {
+  var root = document.documentElement;
+  var wrap = document.querySelector('.d-wrap');
+  if (!wrap) return;
+  root.classList.add('display-mode');
+  var fits = function (px) {
+    root.style.fontSize = px + 'px';
+    return wrap.scrollHeight <= window.innerHeight && wrap.scrollWidth <= window.innerWidth;
+  };
+  var lo = 6, hi = 60;
+  for (var i = 0; i < 18; i++) {          // 二分搜尋
+    var mid = (lo + hi) / 2;
+    if (fits(mid)) lo = mid; else hi = mid;
+  }
+  // 留 3% 餘裕並無條件捨去，避免卡在「剛好換行」的臨界值而多出一行
+  root.style.fontSize = (Math.floor(lo * 0.97 * userZoom * 100) / 100) + 'px';
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (VIEW === 'display') fitAll(); });
+function zoom(step) {
+  userZoom = Math.min(1, Math.max(0.5, Math.round((userZoom + step) * 10) / 10));
+  try { localStorage.setItem('displayZoom', String(userZoom)); } catch (e) {}
+  fitAll();
+  toast(userZoom >= 1 ? '已恢復自動填滿螢幕' : '目前為自動大小的 ' + Math.round(userZoom * 100) + '%');
+}
+window.addEventListener('resize', function () { if (VIEW === 'display') fitAll(); });
+if (VIEW === 'display') {
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '-' || e.key === '_') zoom(-0.1);
+    if (e.key === '+' || e.key === '=') zoom(0.1);
+    if (document.querySelector('.dd-wrap')) {
+      if (e.key === 'ArrowLeft') displayGo(-1);
+      if (e.key === 'ArrowRight' && date !== todayStr()) displayGo(1);
+    }
+  });
+}
+
+function renderTeacher() {
+  var h = '<header class="t-header">' +
+    '<div class="t-title"><h1>作業繳交看板</h1><span>' + esc(state ? state.className : '') + (state ? '・全班 ' + state.size + ' 人' : '') + '</span></div>' +
+    '<div class="datenav">' +
+      '<button class="iconbtn" aria-label="前一天" onclick="goDay(-1)">' + ICON.left + '</button>' +
+      '<div class="datebox"><b>' + niceDate(date) + '</b><small>' + weekday(date) + (weekNo(date) ? '・第 ' + weekNo(date) + ' 週' : '') + (date === todayStr() ? '・今天' : '') + '</small>' +
+        '<input type="date" aria-label="選擇日期" value="' + date + '" onchange="setDate(this.value)"></div>' +
+      '<button class="iconbtn" aria-label="後一天" onclick="goDay(1)">' + ICON.right + '</button>' +
+    '</div>';
+  if (state) {
+    h += '<div class="seg" role="group" aria-label="今日類型">' +
+      ['上課', '停課', '補課'].map(function (t) {
+        return '<button aria-pressed="' + (state.day.type === t) + '" onclick="setDayType(\'' + t + '\')">' + t + '日</button>';
+      }).join('') + '</div>';
+  }
+  h += '<div class="seg tabs" role="tablist" aria-label="功能">' +
+    [['board', '繳交看板'], ['diary', '聯絡簿']].map(function (t) {
+      return '<button role="tab" aria-selected="' + (tab === t[0]) + '" aria-pressed="' + (tab === t[0]) + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>';
+    }).join('') + '</div>';
+  h += '<div class="sync"><span class="dot"></span><span id="sync-label">即時同步中</span></div></header>';
+
+  if (!state) return h + '<div style="padding:40px;text-align:center;color:var(--muted)">載入中…</div>';
+  if (tab === 'diary' && state.day.type !== '停課') return h + renderDiaryEditor();
+
+  h += '<main class="t-main">';
+  if (state.day.type === '停課') {
+    h += '<div class="offday"><h2>今天是停課日</h2><p>停課日不登記作業，也不列入「個人區間追蹤」。<br>' +
+      (state.day.auto ? '週六、週日會自動判定為停課日；如果今天要補課，請按上方「補課日」。' : '這一天是手動設定的停課日。') + '</p></div>';
+    return h + '</main>';
+  }
+
+  h += '<div class="leave-strip"><span><b>今日請假：</b>' +
+    (state.leave.length ? state.leave.join('、') + ' 號（不列入未交）' : '無') + '</span>' +
+    '<button class="small" onclick="openLeave()">登記請假</button></div>';
+  if (state.duePending.length) {
+    h += '<div class="leave-strip due"><span><b>預定批改（' + shortDate(state.dueFrom) + ' 的聯絡簿）：</b>' +
+      state.duePending.map(function (x) { return esc(x.text); }).join('、') + '<br><small style="color:var(--muted)">到了當天打開看板，就會自動建立成繳交卡片。</small></span></div>';
+  } else if (state.dueFrom && state.assignments.length) {
+    h += '<div class="leave-strip due"><span>今天批改的是 <b>' + shortDate(state.dueFrom) + '</b> 聯絡簿上勾選「批」的作業。</span></div>';
+  }
+
+  h += '<div class="cards">';
+  if (!state.assignments.length) {
+    h += '<div class="empty">今天還沒有作業項目。<br><br><button class="btn btn-blue" style="margin:0 auto" onclick="addAssignment()">' + ICON.plus + '新增第一項作業</button></div>';
+  }
+  state.assignments.forEach(function (a, ai) {
+    var c = stats(a);
+    var eff = state.size - c['請假'].length;
+    var done = c['已交'].length + c['已訂正'].length;
+    var seats = a.seats.map(function (s, i) {
+      var n = i + 1;
+      var v = seatStatus(a, i);
+      return '<button class="seat s-' + KEY[v] + '" aria-label="' + n + ' 號，' + v + '" onclick="tap(' + ai + ',' + n + ')">' + pad(n) + '</button>';
+    }).join('');
+    h += '<section class="card">' +
+      '<div class="card-head"><h2>' + esc(a.title) + '</h2><span class="done">完成 ' + done + '/' + eff + '</span></div>' +
+      barHtml(c, state.size) +
+      '<div class="grid10">' + seats + '</div>' +
+      countsHtml(c, 'counts') +
+      '<div class="card-tools"><button class="small" onclick="allSubmitted(' + ai + ')">全班標記已交</button>' +
+      '<button class="small" onclick="renameAssignment(' + ai + ')">改名稱</button>' +
+      '<button class="small danger" onclick="deleteAssignment(' + ai + ')">刪除</button></div>' +
+      '</section>';
+  });
+  h += '</div>';
+
+  h += '<aside class="side">' +
+    '<button class="btn btn-blue" onclick="addAssignment()">' + ICON.plus + '新增作業</button>' +
+    toolPanel() +
+    '<section class="panel"><h2>今日聯絡簿</h2><span style="font-size:14px;color:var(--muted)">' +
+      (state.items.length ? '已填寫 ' + state.items.length + ' 項' : '尚未填寫') + '</span>' +
+      '<button class="btn btn-line" onclick="setTab(\'diary\')">編輯聯絡簿</button></section>' +
+    '<section class="panel"><h2>今日結算</h2>';
+  if (state.leave.length) h += '<div class="sum-item"><span style="color:var(--muted);font-weight:700">請假：</span>' + state.leave.join('、') + ' 號</div>';
+  if (!state.assignments.length) h += '<p style="margin:0;color:var(--muted);font-size:14px">尚無資料</p>';
+  state.assignments.forEach(function (a) {
+    var c = stats(a);
+    h += '<div class="sum-item"><b>' + esc(a.title) + '</b><br>' +
+      '<span class="c-miss">未交：</span>' + (c['未交'].length ? c['未交'].join('、') + ' 號' : '無') + '<br>' +
+      '<span class="c-tc">待訂正：</span>' + (c['待訂正'].length ? c['待訂正'].join('、') + ' 號' : '無') + '</div>';
+  });
+  h += '<button class="btn btn-dark" onclick="copyText(summaryText())">' + ICON.copy + '複製結算文字（貼到 LINE）</button></section>' +
+    '<section class="panel"><h2>工具</h2>' +
+      '<div class="row"><span>大螢幕顯示</span><div class="seg" role="group" aria-label="大螢幕顯示">' +
+        ['作業看板', '聯絡簿'].map(function (m) {
+          return '<button aria-pressed="' + (state.displayMode === m) + '" onclick="setDisplayMode(\'' + m + '\')">' + m + '</button>';
+        }).join('') + '</div></div>' +
+      '<div class="row"><span>大螢幕隱私模式<br><small style="color:var(--muted)">開啟後只顯示完成人數，不顯示個別座號</small></span>' +
+        '<button class="switch" role="switch" aria-label="大螢幕隱私模式" aria-checked="' + state.privacy + '" onclick="togglePrivacy()"></button></div>' +
+      '<button class="btn btn-line" onclick="openTrack()">個人區間追蹤</button>' +
+      '<button class="btn btn-line" onclick="copyText(state.displayUrl)">複製大螢幕網址</button>' +
+      '<button class="btn btn-line" onclick="copyText(state.diaryUrl)">複製「只顯示聯絡簿」的網址</button>' +
+      '<button class="btn btn-line" onclick="openSettings()">班級設定（名稱、人數、週次、座位表）</button>' +
+      '<button class="btn btn-line" onclick="openExport()">匯出紀錄（Excel 可開啟）</button>' +
+      '<button class="btn btn-line" onclick="signOut()">登出 ' + esc(authUser && authUser.email ? authUser.email : '') + '</button>' +
+    '</section></aside></main>';
+
+  h += '<div class="legend">' +
+    '<span>' + swatch('未交') + '預設未交</span>' +
+    '<span>' + swatch('已交') + '點 1 下：已交</span>' +
+    '<span>' + swatch('待訂正') + '點 2 下：待訂正</span>' +
+    '<span>' + swatch('已訂正') + '點 3 下：已訂正</span>' +
+    '<span>' + swatch('請假') + '請假</span>' +
+    '<span style="font-weight:500">再點一下回到未交</span></div>';
+  return h;
+}
+
+function renderDisplay() {
+  if (isDiaryScreen()) return renderDiaryScreen();
+  var diaryMode = false;
+  var h = '<div class="d-wrap"><header class="d-head"><div><h1>' + (diaryMode ? '今日聯絡簿' : '今日作業') + '</h1><div class="sub">' +
+    niceDate(date) + ' ' + weekday(date) + (state && state.className ? '・' + esc(state.className) : '') + '</div></div>' +
+    '<div class="d-sync"><span class="dot"></span><div><b id="sync-label">即時同步中</b><small>' +
+    esc(state && state.last ? '剛剛更新：' + state.last : '由老師手機登記，畫面自動更新') + '</small></div></div></header>';
+  if (state && state.announce) {
+    h += '<div class="d-announce" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>' + esc(state.announce) + '</div>';
+  }
+  var zoomCtl = (audioCtx ? '' : '<span class="d-hint">點一下畫面可啟用倒數提示音</span>') + '<span class="d-zoom">畫面大小<button aria-label="縮小" onclick="zoom(-0.1)">－</button><button aria-label="放大" onclick="zoom(0.1)">＋</button></span>';
+
+  if (!state) return h + '<div class="d-off"><p>載入中…</p></div></div>';
+  if (state.day.type === '停課') return h + '<div class="d-off"><h2>今天是停課日</h2><p>好好休息！</p></div></div>';
+
+  if (diaryMode) {
+    var lines = diaryLines(state.diary);
+    if (!lines.length) return h + '<div class="d-off"><h2>今天的聯絡簿還沒有內容</h2><p>老師填寫後，這裡會自動出現。</p></div></div>';
+    h += '<section class="d-diary"><ol>' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ol></section>';
+    return h + '<footer class="d-foot"><span>請把以上內容抄進聯絡簿</span>' + zoomCtl + '</footer></div>';
+  }
+
+  if (!state.assignments.length) return h + '<div class="d-off"><h2>今天還沒有登記作業</h2><p>老師新增作業後，這裡會自動出現。</p></div></div>';
+
+  h += '<div class="d-cards">';
+  state.assignments.forEach(function (a) {
+    var c = stats(a);
+    var eff = state.size - c['請假'].length;
+    var done = c['已交'].length + c['已訂正'].length;
+    var L = layoutOf();
+    h += '<section class="d-card" style="--cols:' + L.cols + ';--rows:' + L.rows + '"><div class="d-card-head"><h2>' + esc(a.title) + '</h2><span class="done">完成 ' + done + '/' + eff + '</span></div>';
+    if (state.privacy) {
+      h += '<div class="d-private">' + barHtml(c, state.size) +
+        '<div class="big">' + done + '<span> / ' + eff + ' 人完成</span></div></div>';
+    } else {
+      h += (state.layout ? '<div class="d-podium">講台</div>' : '') + '<div class="d-grid">' + L.cells.map(function (n) {
+        if (!n) return '<div class="seat-gap" aria-hidden="true"></div>';
+        var v = seatStatus(a, n - 1);
+        return '<div class="seat s-' + KEY[v] + (isFresh(a.title, n) ? ' fresh' : '') + '" role="img" aria-label="' + n + ' 號，' + v + '">' + pad(n) + '</div>';
+      }).join('') + '</div>';
+    }
+    h += countsHtml(c, 'd-counts') + '</section>';
+  });
+  h += '</div><footer class="d-foot">' +
+    ['未交', '已交', '待訂正', '已訂正', '請假'].map(function (k) { return '<span style="display:flex;align-items:center;gap:.5rem">' + swatch(k) + k + '</span>'; }).join('') +
+    zoomCtl + '</footer></div>';
+  return h;
+}
+
+
+/* ---------- 班級設定（取代原本試算表的「設定」與「座位表」分頁） ---------- */
+function layoutText() {
+  var L = state.layout || [];
+  return L.map(function (r) { return r.map(function (n) { return n ? String(n) : '_'; }).join(' '); }).join('\n');
+}
+function openSettings() {
+  openModal('<h2>班級設定</h2>' +
+    '<div class="form" style="grid-template-columns:1fr 90px">' +
+      '<label>班級名稱<input id="set-name" maxlength="20" value="' + esc(state.className) + '"></label>' +
+      '<label>全班人數<input id="set-size" type="number" min="1" max="60" inputmode="numeric" value="' + state.size + '"></label>' +
+    '</div>' +
+    '<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:var(--muted)">第一週的星期一（週次從這天起算，換學期時修改）' +
+      '<input id="set-week" type="date" value="' + esc(state.weekStart) + '" style="height:46px;border:1px solid var(--line2);border-radius:10px;padding:0 10px;font-size:16px;color:var(--ink)"></label>' +
+    '<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:var(--muted)">座位表（第一行是最靠近講台的前排；座號用空格隔開，走道或空位打 _ ）' +
+      '<textarea class="copybox" id="set-layout" style="font-family:ui-monospace,monospace;min-height:150px">' + esc(layoutText()) + '</textarea></label>' +
+    '<div class="dialog-actions"><button class="btn btn-line" onclick="closeModal()">取消</button><button class="btn btn-blue" onclick="saveSettingsForm()">儲存</button></div>');
+}
+function saveSettingsForm() {
+  var o = {
+    className: document.getElementById('set-name').value,
+    size: document.getElementById('set-size').value,
+    weekStart: document.getElementById('set-week').value
+  };
+  var rows = document.getElementById('set-layout').value.split('\n').map(function (line) {
+    return line.trim().split(/[\s,，、]+/).filter(String).map(function (x) { var n = parseInt(x, 10); return n > 0 ? n : 0; });
+  }).filter(function (r) { return r.length; });
+  closeModal();
+  write('saveSettings', [o]).then(function () { return write('saveLayout', [rows], '班級設定已儲存'); });
+}
+
+/* ---------- 匯出紀錄（CSV，Excel 與 Google 試算表都能開啟） ---------- */
+function openExport() {
+  var d = parse(date);
+  var first = fmt(new Date(d.getFullYear(), d.getMonth(), 1));
+  openModal('<h2>匯出繳交紀錄</h2><p style="margin:0;color:var(--muted);font-size:14px">會下載一個 CSV 檔，可以用 Excel 或 Google 試算表開啟。</p>' +
+    '<div class="form" style="grid-template-columns:1fr 1fr">' +
+      '<label>開始日期<input id="ex-start" type="date" value="' + first + '"></label>' +
+      '<label>結束日期<input id="ex-end" type="date" value="' + date + '"></label>' +
+    '</div>' +
+    '<div class="dialog-actions"><button class="btn btn-line" onclick="closeModal()">取消</button><button class="btn btn-blue" onclick="runExport()">下載</button></div>');
+}
+function runExport() {
+  var start = document.getElementById('ex-start').value, end = document.getElementById('ex-end').value;
+  call('exportRows', start, end).then(function (rows) {
+    if (rows.length < 2) { toast('這段期間沒有紀錄'); return; }
+    var csv = rows.map(function (r) {
+      return r.map(function (v) { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(',');
+    }).join('\r\n');
+    var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '作業繳交紀錄_' + start + '_' + end + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    closeModal(); toast('已下載 ' + (rows.length - 1) + ' 筆紀錄');
+  }).catch(function (e) { toast(errMsg(e)); });
+}
+
+/* ---------- 登入 ---------- */
+var authUser = null, denied = false, authChecked = false;
+var CONFIG_OK = typeof FIREBASE_CONFIG === 'object' && FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && !/請貼上|YOUR_/i.test(FIREBASE_CONFIG.apiKey);
+function gateHtml() {
+  var wrap = function (inner) {
+    return '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box">' +
+      '<div style="background:#fff;border:1px solid var(--line);border-radius:20px;padding:32px 28px;max-width:420px;width:100%;text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center">' +
+      '<h1 style="margin:0;font-size:24px;font-weight:900">' + (DIARY_ONLY ? '聯絡簿' : '作業繳交看板') + '</h1>' + inner + '</div></div>';
+  };
+  if (!CONFIG_OK) return wrap('<p style="margin:0;color:var(--muted);line-height:1.7">還沒有設定 Firebase。請打開 <code>firebase-config.js</code>，貼上 Firebase 專案的設定後再重新整理。</p>');
+  if (!authChecked) return wrap('<p style="margin:0;color:var(--muted)">載入中…</p>');
+  if (!authUser) return wrap('<p style="margin:0;color:var(--muted);line-height:1.7">請用老師的 Google 帳號登入。<br>這台裝置登入一次後就會記住。</p>' +
+    '<button class="btn btn-blue" style="width:100%" onclick="signIn()">用 Google 帳號登入</button>');
+  if (denied) return wrap('<p style="margin:0;line-height:1.7">目前登入的是 <b>' + esc(authUser.email || '') + '</b>，<br>這個帳號沒有權限使用這個看板。</p>' +
+    '<p style="margin:0;color:var(--muted);font-size:14px;line-height:1.7">請改用老師的帳號登入；如果這就是老師的帳號，請確認 Firebase 資料庫規則裡的 email 寫的是它。</p>' +
+    '<button class="btn btn-dark" style="width:100%" onclick="signOut()">登出，換一個帳號</button>');
+  return '';
+}
+function signIn() {
+  var p = new firebase.auth.GoogleAuthProvider();
+  p.setCustomParameters({ prompt: 'select_account' });
+  firebase.auth().signInWithPopup(p).catch(function (e) {
+    if (e && /popup-blocked|operation-not-supported|popup-closed-by-user/.test(e.code || '')) {
+      if (e.code !== 'auth/popup-closed-by-user') firebase.auth().signInWithRedirect(p);
+    } else toast(errMsg(e));
+  });
+}
+function signOut() { firebase.auth().signOut().then(function () { location.reload(); }); }
+
+if (CONFIG_OK) {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  firebase.auth().onAuthStateChanged(function (u) {
+    authChecked = true; authUser = u; denied = false;
+    if (!u) { render(); return; }
+    render();
+    var db = firebase.database();
+    startData(db, scheduleRefresh, function () { denied = true; render(); })
+      .then(function () {
+        connectedRef().on('value', function (snap) { syncOk = !!snap.val(); updateSync(); });
+        scheduleRefresh();
+      })
+      .catch(function (e) {
+        if (/permission/i.test((e && (e.code || e.message)) || '')) denied = true; else toast(errMsg(e));
+        render();
+      });
+  });
+}
+
+render();
+</script>
+</body>
+</html>
