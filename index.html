@@ -247,7 +247,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="data.js"></script>
+<script src="data.js?v=20261126c"></script>
 </head>
 <body>
 <div id="app"><div style="padding:40px;text-align:center;color:#5B616E">載入中…</div></div>
@@ -364,6 +364,10 @@ function refresh() {
   if (!ready(date)) return;
   syncDue(date, todayStr());
   var r = buildState(date);
+  // 手機若還留著舊版 data.js，缺少的欄位補上預設值，避免畫面卡在載入中
+  if (!r.skip) r.skip = [];
+  if (!r.count) r.count = r.size - r.skip.length;
+  if (!r.timetable) r.timetable = [];
   markFresh(state, r);
   state = r;
   render();
