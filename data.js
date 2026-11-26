@@ -88,6 +88,11 @@ function startData(db, changed, denied) {
     });
     return dref().update(up);
   }).then(function () {
+    // 六年仁班沒有 4 號：空號從來沒設定過才寫入（之後在班級設定修改，清空也不會被蓋回）
+    return dref('settings/skip').once('value').then(function (k) {
+      if (k.val() === null) return dref('settings/skip').set([4]);
+    });
+  }).then(function () {
     // 課表從來沒設定過（不是被清空）才寫入預設課表
     return dref('timetable').once('value').then(function (t) {
       if (t.val() === null) return dref('timetable').set({ periods: DEFAULT_TIMETABLE, set: true });
@@ -142,9 +147,18 @@ function settings() {
     weekStart: /^\d{4}-\d{2}-\d{2}$/.test(s.weekStart || '') ? s.weekStart : '',
     displayMode: s.displayMode === '聯絡簿' ? '聯絡簿' : '作業看板',
     privacy: !!s.privacy,
-    announce: s.announce || ''
+    announce: s.announce || '',
+    skip: skipList(s.skip, size >= 1 && size <= 60 ? size : 30)
   };
 }
+/** 空號：班上沒有的座號（例如沒有 4 號），不出現在格子、統計、抽籤與匯出 */
+function skipList(v, size) {
+  var arr = Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.keys(v).map(function (k) { return v[k]; }) : []);
+  var out = [];
+  arr.forEach(function (x) { var n = parseInt(x, 10); if (n >= 1 && n <= size && out.indexOf(n) < 0) out.push(n); });
+  return out.sort(function (a, b) { return a - b; });
+}
+function isSkip(n) { return settings().skip.indexOf(n) >= 0; }
 
 /** 課表：periods = [{ name: '第1節', start: '08:40', end: '09:20', subj: [週一, 週二, 週三, 週四, 週五] }] */
 var TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -214,7 +228,7 @@ function defaultLayout(size) {
   var rows = [];
   for (var r = 0; r < Math.ceil(size / 6); r++) {
     var line = [];
-    for (var c = 1; c <= 6; c++) { var n = r * 6 + c; line.push(n <= size ? n : 0); }
+    for (var c = 1; c <= 6; c++) { var n = r * 6 + c; line.push(n <= size && !isSkip(n) ? n : 0); }
     rows.push(line);
   }
   return rows;
@@ -228,7 +242,7 @@ function layoutFor(size) {
   var rows = L.map(function (r) {
     return (Array.isArray(r) ? r : []).map(function (v) {
       var n = parseInt(v, 10);
-      if (n >= 1 && n <= size && !used[n]) { used[n] = true; return n; }
+      if (n >= 1 && n <= size && !used[n] && !isSkip(n)) { used[n] = true; return n; }
       return null;
     });
   }).filter(function (r) { return r.some(function (x) { return x; }); });
@@ -237,7 +251,7 @@ function layoutFor(size) {
   rows.forEach(function (r) { cols = Math.max(cols, r.length); });
   rows = rows.map(function (r) { while (r.length < cols) r.push(null); return r; });
   var missing = [];
-  for (var n = 1; n <= size; n++) if (!used[n]) missing.push(n);
+  for (var n = 1; n <= size; n++) if (!used[n] && !isSkip(n)) missing.push(n);
   while (missing.length) {
     var line = missing.splice(0, cols);
     while (line.length < cols) line.push(null);
@@ -268,6 +282,8 @@ function buildState(date) {
     day: dayTypeOf(date),
     className: st.className,
     size: st.size,
+    skip: st.skip,
+    count: st.size - st.skip.length,
     privacy: st.privacy,
     displayMode: st.displayMode,
     announce: st.announce,
@@ -316,6 +332,7 @@ function sizeNow() { return settings().size; }
 function needSeat(seat) {
   seat = Number(seat);
   if (!(seat >= 1 && seat <= sizeNow())) throw new Error('座號必須在 1 到 ' + sizeNow() + ' 之間。');
+  if (isSkip(seat)) throw new Error(seat + ' 號是空號。');
   return seat;
 }
 function needRecord(date, aid) {
@@ -340,7 +357,7 @@ var API = {
   setAll: function (date, aid, title, status) {
     needRecord(date, aid);
     var seats = {};
-    for (var n = 1; n <= sizeNow(); n++) seats[n] = status;
+    for (var n = 1; n <= sizeNow(); n++) if (!isSkip(n)) seats[n] = status;
     var up = {};
     up['records/' + date + '/' + aid + '/seats'] = seats;
     up['meta'] = { last: title + ' 全班 → ' + status, at: serverNow() };
@@ -384,9 +401,11 @@ var API = {
   saveSettings: function (o) {
     var className = cleanText(o.className, 20);
     var size = parseInt(o.size, 10);
-    if (!(size >= 1 && size <= 60)) throw new Error('全班人數請填 1 到 60。');
+    if (!(size >= 1 && size <= 60)) throw new Error('最大座號請填 1 到 60。');
     if (o.weekStart && !/^\d{4}-\d{2}-\d{2}$/.test(o.weekStart)) throw new Error('週次起算日格式錯誤。');
-    return dref('settings').update({ className: className, size: size, weekStart: o.weekStart || '' }).then(function () { return touch('班級設定已更新'); });
+    var skip = skipList(o.skip, size);
+    if (skip.length >= size) throw new Error('空號不能包含全部座號。');
+    return dref('settings').update({ className: className, size: size, weekStart: o.weekStart || '', skip: skip.length ? skip : false }).then(function () { return touch('班級設定已更新'); });
   },
   saveTimetable: function (periods) {
     var out = [];
@@ -433,7 +452,7 @@ var API = {
     var picked = cache.picked && cache.picked.date === date && Array.isArray(cache.picked.seats) ? cache.picked.seats.slice() : [];
     var pool = [], all = [];
     for (var n = 1; n <= size; n++) {
-      if (leave[n]) continue;
+      if (leave[n] || isSkip(n)) continue;
       all.push(n);
       if (!noRepeat || picked.indexOf(n) < 0) pool.push(n);
     }
@@ -587,13 +606,14 @@ var API = {
     ]).then(function (s) {
       var recs = s[0].val() || {}, leave = s[1].val() || {};
       var head = ['日期', '作業'];
-      for (var n = 1; n <= size; n++) head.push(n + '號');
+      for (var n = 1; n <= size; n++) if (!isSkip(n)) head.push(n + '號');
       var rows = [head];
       Object.keys(recs).sort().forEach(function (ds) {
         var day = recs[ds] || {};
         Object.keys(day).sort(function (a, b) { return (day[a].order || 0) - (day[b].order || 0); }).forEach(function (aid) {
           var line = [ds, day[aid].title || ''];
           for (var n = 1; n <= size; n++) {
+            if (isSkip(n)) continue;
             var v = leave[ds] && leave[ds][n] ? '請假' : (day[aid].seats && day[aid].seats[n]) || '未交';
             line.push(v);
           }

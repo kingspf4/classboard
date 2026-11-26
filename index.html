@@ -241,6 +241,7 @@
   .tt-table .tt-del{border:0;background:none;color:var(--muted);font-size:20px;width:32px;height:38px;cursor:pointer}
   .t-tt{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:15px;font-weight:700;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
   .t-tt small{color:var(--muted);font-weight:500}
+  .seat-skip{visibility:hidden}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -300,7 +301,7 @@ function toast(msg) {
 function seatStatus(a, i) { return (state.leave || []).indexOf(i + 1) >= 0 ? '請假' : a.seats[i]; }
 function stats(a) {
   var c = { '未交': [], '已交': [], '待訂正': [], '已訂正': [], '請假': [] };
-  a.seats.forEach(function (s, i) { c[seatStatus(a, i)].push(i + 1); });
+  a.seats.forEach(function (s, i) { if ((state.skip || []).indexOf(i + 1) < 0) c[seatStatus(a, i)].push(i + 1); });
   return c;
 }
 function countsHtml(c, cls) {
@@ -415,8 +416,12 @@ function tick() {
   }
   if (t.type === 'pick') {
     var el = document.getElementById('pick-num');
-    if (el) el.textContent = Date.now() < rollUntil ? pad(1 + Math.floor(Math.random() * state.size)) : pad(t.seat);
+    if (el) el.textContent = Date.now() < rollUntil ? pad(rollSeat()) : pad(t.seat);
   }
+}
+function rollSeat() {
+  var n; do { n = 1 + Math.floor(Math.random() * state.size); } while (state.skip.indexOf(n) >= 0 && state.skip.length < state.size);
+  return n;
 }
 setInterval(tick, 100);
 /* 瀏覽器規定要先點過畫面才能發出聲音：大螢幕點一下任何地方即可啟用提示音 */
@@ -496,6 +501,7 @@ function renderLeaveGrid() {
   if (!g) return;
   var h = '';
   for (var n = 1; n <= state.size; n++) {
+    if (state.skip.indexOf(n) >= 0) continue;
     h += '<button aria-pressed="' + (state.leave.indexOf(n) >= 0) + '" aria-label="' + n + ' 號請假" onclick="toggleLeaveSeat(' + n + ')">' + pad(n) + '</button>';
   }
   g.innerHTML = h;
@@ -598,7 +604,7 @@ function layoutOf() {
     return { cols: cols, rows: state.layout.length, cells: [].concat.apply([], state.layout) };
   }
   var cells = [];
-  for (var n = 1; n <= state.size; n++) cells.push(n);
+  for (var n = 1; n <= state.size; n++) cells.push(state.skip.indexOf(n) >= 0 ? 0 : n);
   return { cols: 6, rows: Math.ceil(state.size / 6), cells: cells };
 }
 function toolOverlay() {
@@ -969,7 +975,7 @@ if (VIEW === 'display') {
 
 function renderTeacher() {
   var h = '<header class="t-header">' +
-    '<div class="t-title"><h1>作業繳交看板</h1><span>' + esc(state ? state.className : '') + (state ? '・全班 ' + state.size + ' 人' : '') + '</span></div>' +
+    '<div class="t-title"><h1>作業繳交看板</h1><span>' + esc(state ? state.className : '') + (state ? '・全班 ' + state.count + ' 人' : '') + '</span></div>' +
     '<div class="datenav">' +
       '<button class="iconbtn" aria-label="前一天" onclick="goDay(-1)">' + ICON.left + '</button>' +
       '<div class="datebox"><b>' + niceDate(date) + '</b><small>' + weekday(date) + (weekNo(date) ? '・第 ' + weekNo(date) + ' 週' : '') + (date === todayStr() ? '・今天' : '') + '</small>' +
@@ -1015,16 +1021,17 @@ function renderTeacher() {
   }
   state.assignments.forEach(function (a, ai) {
     var c = stats(a);
-    var eff = state.size - c['請假'].length;
+    var eff = state.count - c['請假'].length;
     var done = c['已交'].length + c['已訂正'].length;
     var seats = a.seats.map(function (s, i) {
       var n = i + 1;
+      if (state.skip.indexOf(n) >= 0) return '<span class="seat seat-skip" aria-hidden="true"></span>';
       var v = seatStatus(a, i);
       return '<button class="seat s-' + KEY[v] + '" aria-label="' + n + ' 號，' + v + '" onclick="tap(' + ai + ',' + n + ')">' + pad(n) + '</button>';
     }).join('');
     h += '<section class="card">' +
       '<div class="card-head"><h2>' + esc(a.title) + '</h2><span class="done">完成 ' + done + '/' + eff + '</span></div>' +
-      barHtml(c, state.size) +
+      barHtml(c, state.count) +
       '<div class="grid10">' + seats + '</div>' +
       countsHtml(c, 'counts') +
       '<div class="card-tools"><button class="small" onclick="allSubmitted(' + ai + ')">全班標記已交</button>' +
@@ -1104,12 +1111,12 @@ function renderDisplay() {
   h += '<div class="d-cards">';
   state.assignments.forEach(function (a) {
     var c = stats(a);
-    var eff = state.size - c['請假'].length;
+    var eff = state.count - c['請假'].length;
     var done = c['已交'].length + c['已訂正'].length;
     var L = layoutOf();
     h += '<section class="d-card" style="--cols:' + L.cols + ';--rows:' + L.rows + '"><div class="d-card-head"><h2>' + esc(a.title) + '</h2><span class="done">完成 ' + done + '/' + eff + '</span></div>';
     if (state.privacy) {
-      h += '<div class="d-private">' + barHtml(c, state.size) +
+      h += '<div class="d-private">' + barHtml(c, state.count) +
         '<div class="big">' + done + '<span> / ' + eff + ' 人完成</span></div></div>';
     } else {
       h += (state.layout ? '<div class="d-podium">講台</div>' : '') + '<div class="d-grid">' + L.cells.map(function (n) {
@@ -1221,8 +1228,10 @@ function openSettings() {
   openModal('<h2>班級設定</h2>' +
     '<div class="form" style="grid-template-columns:1fr 90px">' +
       '<label>班級名稱<input id="set-name" maxlength="20" value="' + esc(state.className) + '"></label>' +
-      '<label>全班人數<input id="set-size" type="number" min="1" max="60" inputmode="numeric" value="' + state.size + '"></label>' +
+      '<label>最大座號<input id="set-size" type="number" min="1" max="60" inputmode="numeric" value="' + state.size + '"></label>' +
     '</div>' +
+    '<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:var(--muted)">空號（班上沒有的座號，用空格或逗號隔開，例如 4）' +
+      '<input id="set-skip" inputmode="numeric" value="' + esc(state.skip.join(' ')) + '" style="height:46px;border:1px solid var(--line2);border-radius:10px;padding:0 10px;font-size:16px;color:var(--ink)"></label>' +
     '<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:var(--muted)">第一週的星期一（週次從這天起算，換學期時修改）' +
       '<input id="set-week" type="date" value="' + esc(state.weekStart) + '" style="height:46px;border:1px solid var(--line2);border-radius:10px;padding:0 10px;font-size:16px;color:var(--ink)"></label>' +
     '<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:var(--muted)">座位表（第一行是最靠近講台的前排；座號用空格隔開，走道或空位打 _ ）' +
@@ -1233,7 +1242,8 @@ function saveSettingsForm() {
   var o = {
     className: document.getElementById('set-name').value,
     size: document.getElementById('set-size').value,
-    weekStart: document.getElementById('set-week').value
+    weekStart: document.getElementById('set-week').value,
+    skip: document.getElementById('set-skip').value.split(/[\s,，、]+/).map(function (x) { return parseInt(x, 10); }).filter(function (n) { return n > 0; })
   };
   var rows = document.getElementById('set-layout').value.split('\n').map(function (line) {
     return line.trim().split(/[\s,，、]+/).filter(String).map(function (x) { var n = parseInt(x, 10); return n > 0 ? n : 0; });
