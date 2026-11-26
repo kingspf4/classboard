@@ -4,12 +4,14 @@
 //          把 firebaseConfig 大括號裡的內容，整段貼來取代下面的大括號內容。
 // 這些設定本來就會公開在網頁上，是正常的；資料安全由「資料庫規則」保護。
 
-var FIREBASE_CONFIG = {
-  apiKey: "請貼上",
-  authDomain: "",
-  databaseURL: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBWSDgUflBygZIDaRqUg0lAF7xxzpga08M",
+  authDomain: "contactbook-27f67.firebaseapp.com",
+  databaseURL: "https://contactbook-27f67-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "contactbook-27f67",
+  storageBucket: "contactbook-27f67.firebasestorage.app",
+  messagingSenderId: "552378691794",
+  appId: "1:552378691794:web:a567d8b1fae9e1cc44bd0b",
+  measurementId: "G-KFHQ6FVRTC"
 };
