@@ -15,3 +15,7 @@ const firebaseConfig = {
   appId: "1:552378691794:web:a567d8b1fae9e1cc44bd0b",
   measurementId: "G-KFHQ6FVRTC"
 };
+
+
+// 下面這一行不要動
+var FIREBASE_CONFIG = firebaseConfig;
