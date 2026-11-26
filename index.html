@@ -258,12 +258,22 @@
   .dd-portrait .tt-strip{flex-wrap:wrap;white-space:normal;gap:.4rem .8rem;padding:.6rem .9rem}
   .dd-portrait .tt-now{font-size:1.4rem !important;flex-wrap:wrap;gap:.5rem}
   .dd-portrait .tt-next,.dd-portrait .tt-left{font-size:1rem !important}
+  .menu-btn{margin-left:auto;height:42px;padding:0 14px;border-radius:12px;border:1px solid var(--line2);background:#fff;font-size:15px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:6px;cursor:pointer}
+  .menu-btn[aria-expanded="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .menu-pop{position:absolute;top:calc(100% - 4px);right:12px;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 120px);overflow-y:auto;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 14px 40px rgba(20,24,32,.18);padding:6px 0 8px;z-index:20}
+  .menu-sec{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.06em;padding:12px 16px 4px;border-top:1px solid #EEF0F3}
+  .menu-sec:first-child{border-top:0}
+  .menu-item{display:flex;flex-direction:column;align-items:flex-start;width:100%;min-height:46px;justify-content:center;padding:6px 16px;border:0;background:none;text-align:left;font-size:16px;font-weight:700;color:var(--ink);cursor:pointer}
+  .menu-item:active,.menu-item:hover{background:#F2F3F5}
+  .menu-item small,.menu-row small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
+  .menu-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 16px;font-size:16px;font-weight:700}
+  .menu-row .seg button{min-width:0;padding:0 10px}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="data.js?v=20261127c"></script>
+<script src="data.js?v=20261127d"></script>
 </head>
 <body>
 <div id="app"><div style="padding:40px;text-align:center;color:#5B616E">載入中…</div></div>
@@ -1003,6 +1013,41 @@ if (VIEW === 'display') {
   });
 }
 
+
+/* ---------- 右上角「選單」：原本放在頁面最下方的工具，改成下拉式選單 ---------- */
+var menuOpen = false;
+function toggleMenu(e) { if (e) e.stopPropagation(); menuOpen = !menuOpen; render(); }
+function menuGo(fn) { menuOpen = false; render(); fn(); }
+document.addEventListener('click', function (e) {
+  if (menuOpen && !e.target.closest('.menu-pop') && !e.target.closest('.menu-btn')) { menuOpen = false; render(); }
+});
+document.addEventListener('keydown', function (e) { if (menuOpen && e.key === 'Escape') { menuOpen = false; render(); } });
+function menuHtml() {
+  if (!menuOpen || !state) return '';
+  var item = function (label, fn, sub) {
+    return '<button class="menu-item" onclick="menuGo(function(){' + fn + '})">' + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+  };
+  return '<div class="menu-pop" role="menu">' +
+    '<div class="menu-sec">大螢幕</div>' +
+    '<div class="menu-row"><span>顯示</span><div class="seg" role="group" aria-label="大螢幕顯示">' +
+      ['作業看板', '聯絡簿'].map(function (m) {
+        return '<button aria-pressed="' + (state.displayMode === m) + '" onclick="event.stopPropagation();setDisplayMode(\'' + m + '\')">' + m + '</button>';
+      }).join('') + '</div></div>' +
+    '<div class="menu-row"><span>隱私模式<small>只顯示完成人數，不顯示座號</small></span>' +
+      '<button class="switch" role="switch" aria-label="大螢幕隱私模式" aria-checked="' + state.privacy + '" onclick="event.stopPropagation();togglePrivacy()"></button></div>' +
+    item('複製大螢幕網址', 'copyText(state.displayUrl)') +
+    item('複製「只顯示聯絡簿」的網址', 'copyText(state.diaryUrl)') +
+    '<div class="menu-sec">紀錄</div>' +
+    item('個人區間追蹤', 'openTrack()') +
+    item('匯出紀錄', 'openExport()', 'Excel 可開啟') +
+    '<div class="menu-sec">設定</div>' +
+    item('班級設定', 'openSettings()', '名稱、座號、空號、週次、座位表') +
+    item('課表設定', 'openTimetable()') +
+    '<div class="menu-sec"></div>' +
+    item('登出', 'signOut()', esc(authUser && authUser.email ? authUser.email : '')) +
+    '</div>';
+}
+
 function renderTeacher() {
   var h = '<header class="t-header">' +
     '<div class="t-title"><h1>作業繳交看板</h1><span>' + esc(state ? state.className : '') + (state ? '・全班 ' + state.count + ' 人' : '') + '</span></div>' +
@@ -1022,10 +1067,13 @@ function renderTeacher() {
     [['board', '繳交看板'], ['diary', '聯絡簿']].map(function (t) {
       return '<button role="tab" aria-selected="' + (tab === t[0]) + '" aria-pressed="' + (tab === t[0]) + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>';
     }).join('') + '</div>';
-  h += '<div class="sync"><span class="dot"></span><span id="sync-label">即時同步中</span></div></header>';
+  h += '<div class="sync"><span class="dot"></span><span id="sync-label">即時同步中</span></div>' +
+    '<button class="menu-btn" aria-haspopup="menu" aria-expanded="' + menuOpen + '" onclick="toggleMenu(event)">' +
+    '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>選單</button>' +
+    menuHtml() + '</header>';
 
   if (!state) return h + '<div style="padding:40px;text-align:center;color:var(--muted)">載入中…</div>';
-  if (date === todayStr() && state.day.type !== '停課') h += '<div class="t-tt" id="t-tt" style="margin:12px 16px 0">' + ttTeacherInner() + '</div>';
+  if (date === todayStr() && state.day.type !== '停課') h += '<div class="t-tt" id="t-tt" style="margin:12px 16px 0' + (ttTeacherInner().indexOf('<small>') === 0 ? ';display:none' : '') + '">' + ttTeacherInner() + '</div>';
   if (tab === 'diary' && state.day.type !== '停課') return h + renderDiaryEditor();
 
   h += '<main class="t-main">';
@@ -1087,21 +1135,7 @@ function renderTeacher() {
       '<span class="c-tc">待訂正：</span>' + (c['待訂正'].length ? c['待訂正'].join('、') + ' 號' : '無') + '</div>';
   });
   h += '<button class="btn btn-dark" onclick="copyText(summaryText())">' + ICON.copy + '複製結算文字（貼到 LINE）</button></section>' +
-    '<section class="panel"><h2>工具</h2>' +
-      '<div class="row"><span>大螢幕顯示</span><div class="seg" role="group" aria-label="大螢幕顯示">' +
-        ['作業看板', '聯絡簿'].map(function (m) {
-          return '<button aria-pressed="' + (state.displayMode === m) + '" onclick="setDisplayMode(\'' + m + '\')">' + m + '</button>';
-        }).join('') + '</div></div>' +
-      '<div class="row"><span>大螢幕隱私模式<br><small style="color:var(--muted)">開啟後只顯示完成人數，不顯示個別座號</small></span>' +
-        '<button class="switch" role="switch" aria-label="大螢幕隱私模式" aria-checked="' + state.privacy + '" onclick="togglePrivacy()"></button></div>' +
-      '<button class="btn btn-line" onclick="openTrack()">個人區間追蹤</button>' +
-      '<button class="btn btn-line" onclick="copyText(state.displayUrl)">複製大螢幕網址</button>' +
-      '<button class="btn btn-line" onclick="copyText(state.diaryUrl)">複製「只顯示聯絡簿」的網址</button>' +
-      '<button class="btn btn-line" onclick="openSettings()">班級設定（名稱、人數、週次、座位表）</button>' +
-      '<button class="btn btn-line" onclick="openTimetable()">課表設定</button>' +
-      '<button class="btn btn-line" onclick="openExport()">匯出紀錄（Excel 可開啟）</button>' +
-      '<button class="btn btn-line" onclick="signOut()">登出 ' + esc(authUser && authUser.email ? authUser.email : '') + '</button>' +
-    '</section></aside></main>';
+    '</aside></main>';
 
   h += '<div class="legend">' +
     '<span>' + swatch('未交') + '預設未交</span>' +
@@ -1339,7 +1373,7 @@ setInterval(function () {
     if (el && el.innerHTML !== x) el.innerHTML = x;
   } else {
     var t = document.getElementById('t-tt');
-    if (t) t.innerHTML = ttTeacherInner();
+    if (t) { var ti = ttTeacherInner(); t.innerHTML = ti; t.style.display = ti.indexOf('<small>') === 0 ? 'none' : ''; }
   }
 }, 15000);
 function ttTeacherInner() {
