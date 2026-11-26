@@ -38,6 +38,22 @@ var DEFAULT_BLOCKS = [
   { name: '攜帶物品・提醒', type: '提醒', color: '#4A505C', quick: ['帶美勞用具', '繳交家長回條'] }
 ];
 
+
+/* 預設課表：六年仁班 115 學年日課表（第一次開啟時寫入，之後在「課表設定」隨時修改） */
+var DEFAULT_TIMETABLE = [
+  { name: '晨間', start: '07:30', end: '08:00', subj: ['晨間活動', '晨間活動', '晨間活動', '晨間活動', '晨間活動'] },
+  { name: '早修', start: '08:00', end: '08:40', subj: ['', '', '數學', '', ''] },
+  { name: '第1節', start: '08:45', end: '09:25', subj: ['數學', '國語', '英語', '數學', '英語'] },
+  { name: '第2節', start: '09:30', end: '10:10', subj: ['自然', '英語', '英語', '英語', '數學'] },
+  { name: '第3節', start: '10:35', end: '11:15', subj: ['自然', '健康', '資訊科技', '國語', '生命教育'] },
+  { name: '第4節', start: '11:20', end: '12:00', subj: ['國語', '體育', '社會', '英語', '社會'] },
+  { name: '第5節', start: '13:25', end: '14:05', subj: ['本土語言', '英語', '自然', '國語', '海星學習'] },
+  { name: '第6節', start: '14:10', end: '14:50', subj: ['數學', '英語', '社團', '社會', '表演藝術'] },
+  { name: '第7節', start: '15:05', end: '15:45', subj: ['英語', '視覺藝術／閱讀', '社團', '體育', '英語'] },
+  { name: '第8節', start: '16:00', end: '16:40', subj: ['音樂', '視覺藝術／閱讀', '國語', '數學', '國語'] },
+  { name: '課後', start: '16:40', end: '17:00', subj: ['課後輔導', '課後輔導', '課後輔導', '課後輔導', '課後輔導'] }
+];
+
 var DB = null;
 var ROOT = 'c';
 var cache = {};          // 全域資料：settings、blocks、layout、days、tool、picked、meta、links
@@ -72,7 +88,12 @@ function startData(db, changed, denied) {
     });
     return dref().update(up);
   }).then(function () {
-    ['settings', 'blocks', 'layout', 'days', 'tool', 'picked', 'meta', 'links'].forEach(function (k) {
+    // 課表從來沒設定過（不是被清空）才寫入預設課表
+    return dref('timetable').once('value').then(function (t) {
+      if (t.val() === null) return dref('timetable').set({ periods: DEFAULT_TIMETABLE, set: true });
+    });
+  }).then(function () {
+    ['settings', 'blocks', 'layout', 'days', 'tool', 'picked', 'meta', 'links', 'timetable'].forEach(function (k) {
       dref(k).on('value', function (s) {
         cache[k] = s.val();
         globalLoaded[k] = true;
@@ -103,7 +124,7 @@ function watchDay(date) {
 }
 
 function ready(date) {
-  var keys = ['settings', 'blocks', 'layout', 'days', 'tool', 'picked', 'meta', 'links'];
+  var keys = ['settings', 'blocks', 'layout', 'days', 'tool', 'picked', 'meta', 'links', 'timetable'];
   for (var i = 0; i < keys.length; i++) if (!globalLoaded[keys[i]]) return false;
   var prev = prevSchoolDay(date);
   return ('records|' + date) in dayCache && ('leave|' + date) in dayCache && ('items|' + date) in dayCache &&
@@ -123,6 +144,18 @@ function settings() {
     privacy: !!s.privacy,
     announce: s.announce || ''
   };
+}
+
+/** 課表：periods = [{ name: '第1節', start: '08:40', end: '09:20', subj: [週一, 週二, 週三, 週四, 週五] }] */
+var TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+function timetable() {
+  var t = cache.timetable || {};
+  var list = Array.isArray(t.periods) ? t.periods : (t.periods ? Object.keys(t.periods).map(function (k) { return t.periods[k]; }) : []);
+  return list.filter(function (p) { return p && TIME_RE.test(p.start || '') && TIME_RE.test(p.end || ''); }).map(function (p) {
+    var subj = [];
+    for (var i = 0; i < 5; i++) subj.push(cleanText(p.subj && p.subj[i], 12));
+    return { name: cleanText(p.name, 10), start: p.start, end: p.end, subj: subj };
+  }).sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
 }
 
 function blockList() {
@@ -239,6 +272,7 @@ function buildState(date) {
     displayMode: st.displayMode,
     announce: st.announce,
     weekStart: st.weekStart,
+    timetable: timetable(),
     leave: leave,
     layout: layoutFor(st.size),
     blocks: blockList(),
@@ -353,6 +387,22 @@ var API = {
     if (!(size >= 1 && size <= 60)) throw new Error('全班人數請填 1 到 60。');
     if (o.weekStart && !/^\d{4}-\d{2}-\d{2}$/.test(o.weekStart)) throw new Error('週次起算日格式錯誤。');
     return dref('settings').update({ className: className, size: size, weekStart: o.weekStart || '' }).then(function () { return touch('班級設定已更新'); });
+  },
+  saveTimetable: function (periods) {
+    var out = [];
+    (periods || []).forEach(function (p) {
+      var name = cleanText(p.name, 10);
+      var has = (p.subj || []).some(function (x) { return cleanText(x, 12); });
+      if (!p.start && !p.end && !has) return;            // 整列空白就略過
+      if (!TIME_RE.test(p.start || '') || !TIME_RE.test(p.end || '')) throw new Error('「' + (name || '未命名') + '」的上下課時間沒有填完整。');
+      if (p.end <= p.start) throw new Error('「' + (name || '未命名') + '」的下課時間要晚於上課時間。');
+      var subj = [];
+      for (var i = 0; i < 5; i++) subj.push(cleanText(p.subj && p.subj[i], 12));
+      out.push({ name: name, start: p.start, end: p.end, subj: subj });
+    });
+    out.sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    for (var k = 1; k < out.length; k++) if (out[k].start < out[k - 1].end) throw new Error('「' + out[k - 1].name + '」和「' + out[k].name + '」的時間重疊了。');
+    return dref('timetable').set({ periods: out, set: true }).then(function () { return touch('課表已更新'); });
   },
   saveLayout: function (rows) {
     return dref('layout').set(rows && rows.length ? rows : null).then(function () { return touch('座位表已更新'); });

@@ -221,6 +221,26 @@
   .d-off{padding:4rem 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center}
   .d-off h2{margin:0;font-size:3rem;font-weight:900}
   .d-off p{margin:0;font-size:1.4rem;color:var(--muted)}
+  /* 課表：目前節次 */
+  .tt-strip{flex:none;display:flex;align-items:center;gap:1.2rem;background:#fff;border:1px solid var(--line);border-radius:1rem;padding:.55rem 1.2rem;font-weight:900;line-height:1.2;white-space:nowrap}
+  .dd-wrap .tt-now{font-size:2.6rem}
+  .dd-wrap .tt-next,.dd-wrap .tt-left{font-size:1.8rem}
+  .tt-now{display:flex;align-items:center;gap:.8rem;font-size:2.2rem}
+  .tt-tag{font-size:.55em;padding:.3em .6em;border-radius:.5em;background:var(--ink);color:#fff;letter-spacing:.04em}
+  .tt-tag.brk{background:var(--tc);color:var(--tc-ink)}
+  .tt-sub{color:var(--muted);font-size:.6em;font-weight:700}
+  .tt-left{margin-left:auto;font-size:1.5rem;color:var(--muted);font-weight:700}
+  .tt-left b{color:var(--ink);font-size:1.25em}
+  .tt-next{display:flex;align-items:center;gap:.6rem;font-size:1.5rem;color:var(--muted);font-weight:700;border-left:2px solid var(--line);padding-left:1.2rem}
+  .tt-next b{color:var(--ink);font-weight:900}
+  .tt-table{border-collapse:collapse;font-size:14px;min-width:640px}
+  .tt-table th{font-size:12px;color:var(--muted);font-weight:700;padding:4px;text-align:left}
+  .tt-table td{padding:3px}
+  .tt-table input{width:100%;box-sizing:border-box;height:38px;border:1px solid var(--line2);border-radius:8px;padding:0 6px;font-size:15px;color:var(--ink);background:#fff}
+  .tt-table input[type=time]{min-width:92px}
+  .tt-table .tt-del{border:0;background:none;color:var(--muted);font-size:20px;width:32px;height:38px;cursor:pointer}
+  .t-tt{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:15px;font-weight:700;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
+  .t-tt small{color:var(--muted);font-weight:500}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -833,6 +853,7 @@ function renderDiaryScreen() {
     (weekNo(date) ? '<div class="week">第 ' + weekNo(date) + ' 週</div>' : '') +
     (isToday ? '' : '<button class="dd-today" onclick="displayToday()">回到今天</button>') +
     '<div class="cls"><span class="dot"></span><span id="sync-label" class="hidden"></span>' + esc(state && state.className ? state.className : '') + '</div>' + zoomCtl + '</header>';
+  h += ttStrip();
   if (state && state.announce) {
     h += '<div class="d-announce" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>' + esc(state.announce) + '</div>';
   }
@@ -968,6 +989,7 @@ function renderTeacher() {
   h += '<div class="sync"><span class="dot"></span><span id="sync-label">即時同步中</span></div></header>';
 
   if (!state) return h + '<div style="padding:40px;text-align:center;color:var(--muted)">載入中…</div>';
+  if (date === todayStr() && state.day.type !== '停課') h += '<div class="t-tt" id="t-tt" style="margin:12px 16px 0">' + ttTeacherInner() + '</div>';
   if (tab === 'diary' && state.day.type !== '停課') return h + renderDiaryEditor();
 
   h += '<main class="t-main">';
@@ -1039,6 +1061,7 @@ function renderTeacher() {
       '<button class="btn btn-line" onclick="copyText(state.displayUrl)">複製大螢幕網址</button>' +
       '<button class="btn btn-line" onclick="copyText(state.diaryUrl)">複製「只顯示聯絡簿」的網址</button>' +
       '<button class="btn btn-line" onclick="openSettings()">班級設定（名稱、人數、週次、座位表）</button>' +
+      '<button class="btn btn-line" onclick="openTimetable()">課表設定</button>' +
       '<button class="btn btn-line" onclick="openExport()">匯出紀錄（Excel 可開啟）</button>' +
       '<button class="btn btn-line" onclick="signOut()">登出 ' + esc(authUser && authUser.email ? authUser.email : '') + '</button>' +
     '</section></aside></main>';
@@ -1060,6 +1083,7 @@ function renderDisplay() {
     niceDate(date) + ' ' + weekday(date) + (state && state.className ? '・' + esc(state.className) : '') + '</div></div>' +
     '<div class="d-sync"><span class="dot"></span><div><b id="sync-label">即時同步中</b><small>' +
     esc(state && state.last ? '剛剛更新：' + state.last : '由老師手機登記，畫面自動更新') + '</small></div></div></header>';
+  h += ttStrip();
   if (state && state.announce) {
     h += '<div class="d-announce" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>' + esc(state.announce) + '</div>';
   }
@@ -1102,6 +1126,91 @@ function renderDisplay() {
   return h;
 }
 
+
+
+/* ---------- 課表與目前節次 ---------- */
+function hm(t) { var p = t.split(':'); return +p[0] * 60 + +p[1]; }
+/** 依現在時間算出：正在上哪一節、下一節是什麼。不是今天、停課、週末或沒有課表時回傳 null */
+function periodNow() {
+  if (!state || !state.timetable || !state.timetable.length) return null;
+  if (date !== todayStr() || state.day.type === '停課') return null;
+  var wd = new Date().getDay();
+  if (wd === 0 || wd === 6) return null;
+  var list = state.timetable.filter(function (p) { return p.subj[wd - 1]; }).map(function (p) {
+    return { name: p.name, start: p.start, end: p.end, subj: p.subj[wd - 1], s: hm(p.start), e: hm(p.end) };
+  });
+  if (!list.length) return null;
+  var d = new Date(serverNow()), now = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  for (var i = 0; i < list.length; i++) {
+    if (now >= list[i].s && now < list[i].e) return { mode: 'in', cur: list[i], next: list[i + 1] || null, left: Math.ceil(list[i].e - now) };
+    if (now < list[i].s) return { mode: i ? 'break' : 'before', cur: null, next: list[i], left: Math.ceil(list[i].s - now) };
+  }
+  return { mode: 'done', cur: null, next: null, left: 0 };
+}
+function subjColor(name) {
+  var c = '';
+  (state.blocks || []).forEach(function (b) { if (b.name === name || b.name.indexOf(name) === 0) c = b.color; });
+  return c;
+}
+function subjHtml(name) { var c = subjColor(name); return '<span' + (c ? ' style="color:' + c + '"' : '') + '>' + esc(name) + '</span>'; }
+function ttInner() {
+  var p = periodNow();
+  if (!p || (p.mode !== 'break' && p.mode !== 'before')) return '';   // 只在下課（含第一節前）顯示
+  return '<div class="tt-now"><span class="tt-tag brk">' + (p.mode === 'before' ? '還沒上課' : '下課') + '</span>' +
+    '<span class="tt-sub" style="font-size:.7em">下一節</span>' + esc(p.next.name) + ' ' + subjHtml(p.next.subj) +
+    '<span class="tt-sub">' + p.next.start + ' 上課</span></div>';
+}
+function ttStrip() { var x = ttInner(); return x ? '<div class="tt-strip" id="tt-strip">' + x + '</div>' : ''; }
+/* 每 15 秒更新一次節次；出現或消失時才重新排版 */
+setInterval(function () {
+  if (!state) return;
+  var el = document.getElementById('tt-strip'), x = ttInner();
+  if (VIEW === 'display') {
+    if (!!el !== !!x) { render(); return; }
+    if (el && el.innerHTML !== x) el.innerHTML = x;
+  } else {
+    var t = document.getElementById('t-tt');
+    if (t) t.innerHTML = ttTeacherInner();
+  }
+}, 15000);
+function ttTeacherInner() {
+  if (!state.timetable.length) return '<small>還沒有設定課表。按上方「課表設定」填入節次與科目後，下課時大螢幕會顯示下一節上什麼。</small>';
+  var p = periodNow();
+  if (!p || (p.mode !== 'break' && p.mode !== 'before')) return '<small>大螢幕只在下課時顯示下一節課。</small>';
+  return '下課中・下一節：' + esc(p.next.name) + ' ' + esc(p.next.subj) + '<small>' + p.next.start + ' 上課</small>';
+}
+
+/* 課表設定：每一列是一節課，填上下課時間和星期一到五的科目；該天沒課就留白 */
+var ttDraft = [];
+function openTimetable() {
+  ttDraft = state.timetable.length ? JSON.parse(JSON.stringify(state.timetable)) : [1, 2, 3, 4, 5, 6, 7].map(function (n) {
+    return { name: '第' + n + '節', start: '', end: '', subj: ['', '', '', '', ''] };
+  });
+  openModal('<h2>課表設定</h2>' +
+    '<p style="margin:0;color:var(--muted);font-size:14px;line-height:1.6">每一列是一節課。某天那一節沒有課（例如星期三下午）就留白。' +
+    '早自習、午休也可以加成一列，科目欄填「早自習」「午休」即可。科目名稱和聯絡簿區塊相同時，大螢幕會用同樣的顏色。</p>' +
+    '<div style="overflow-x:auto;margin:0 -4px"><table class="tt-table"><thead><tr><th style="width:84px">節次</th><th>上課</th><th>下課</th>' +
+    '<th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th></th></tr></thead><tbody id="tt-body"></tbody></table></div>' +
+    '<button class="btn btn-line" onclick="ttAdd()">＋ 新增一節</button>' +
+    '<div class="dialog-actions"><button class="btn btn-line" onclick="closeModal()">取消</button><button class="btn btn-blue" onclick="ttSave()">儲存</button></div>');
+  ttRender();
+}
+function ttRender() {
+  var body = document.getElementById('tt-body');
+  body.innerHTML = ttDraft.map(function (p, i) {
+    var inp = function (k, v, type, lbl) { return '<td><input' + (type ? ' type="' + type + '"' : '') + ' aria-label="' + esc(lbl) + '" value="' + esc(v) + '" oninput="ttSet(' + i + ',\'' + k + '\',this.value)"></td>'; };
+    return '<tr>' + inp('name', p.name, '', '節次名稱') + inp('start', p.start, 'time', p.name + '上課時間') + inp('end', p.end, 'time', p.name + '下課時間') +
+      p.subj.map(function (x, d) { return inp('s' + d, x, '', p.name + ' 星期' + '一二三四五'.charAt(d)); }).join('') +
+      '<td><button class="tt-del" aria-label="刪除' + esc(p.name) + '" onclick="ttDel(' + i + ')">×</button></td></tr>';
+  }).join('');
+}
+function ttSet(i, k, v) { if (k.charAt(0) === 's' && k.length === 2) ttDraft[i].subj[+k.charAt(1)] = v; else ttDraft[i][k] = v; }
+function ttAdd() { ttDraft.push({ name: '第' + (ttDraft.length + 1) + '節', start: '', end: '', subj: ['', '', '', '', ''] }); ttRender(); }
+function ttDel(i) { ttDraft.splice(i, 1); ttRender(); }
+function ttSave() {
+  try { API.saveTimetable(ttDraft); } catch (e) { toast(errMsg(e)); return; }
+  closeModal(); toast('課表已儲存');
+}
 
 /* ---------- 班級設定（取代原本試算表的「設定」與「座位表」分頁） ---------- */
 function layoutText() {
