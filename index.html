@@ -242,12 +242,28 @@
   .t-tt{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:15px;font-weight:700;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
   .t-tt small{color:var(--muted);font-weight:500}
   .seat-skip{visibility:hidden}
+  /* 手機直向看大螢幕畫面：改成上下捲動的版面，不再塞進一個畫面 */
+  .dd-portrait .dd-wrap{height:auto;min-height:100vh;padding:1rem .9rem 2rem;gap:.7rem}
+  .dd-portrait .dd-head{flex-wrap:wrap;align-items:center;gap:.5rem .6rem}
+  .dd-portrait .dd-head h1,.dd-portrait .dd-head .date,.dd-portrait .dd-head .week{font-size:1.7rem;white-space:nowrap}
+  .dd-portrait .dd-head h1{width:100%}
+  .dd-portrait .dd-head .cls{padding:.35rem .7rem;font-size:.95rem;white-space:nowrap}
+  .dd-portrait .dd-head .d-zoom{display:none}
+  .dd-portrait .dd-nav{width:2.3rem;height:2.3rem}
+  .dd-portrait .dd-rows{flex:none}
+  .dd-portrait .dd-row{flex:none !important}
+  .dd-portrait .dd-label{width:26vw;min-height:3.4rem;font-size:1.15rem !important;padding:.4rem .5rem;letter-spacing:.02em}
+  .dd-portrait .dd-label span{word-break:normal}
+  .dd-portrait .dd-list{padding:.6rem .9rem;font-size:1.2rem !important}
+  .dd-portrait .tt-strip{flex-wrap:wrap;white-space:normal;gap:.4rem .8rem;padding:.6rem .9rem}
+  .dd-portrait .tt-now{font-size:1.4rem !important;flex-wrap:wrap;gap:.5rem}
+  .dd-portrait .tt-next,.dd-portrait .tt-left{font-size:1rem !important}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="data.js?v=20261126c"></script>
+<script src="data.js?v=20261127c"></script>
 </head>
 <body>
 <div id="app"><div style="padding:40px;text-align:center;color:#5B616E">載入中…</div></div>
@@ -697,6 +713,7 @@ var X_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke
 
 function renderDiaryEditor() {
   var h = '<main class="t-main diary-main">';
+  h += '<button class="btn btn-blue" style="width:100%;margin-bottom:12px" onclick="openDiaryImage()">產生家長版圖片</button>';
   h += '<div class="due-strip">這一天勾選 <span class="grade" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:24px;background:var(--sub);border-color:var(--sub);color:#fff;font-size:13px;vertical-align:middle">批</span> 的作業，會在 <b>' +
     (state.dueOn ? shortDate(state.dueOn) : '下一個上課日') + '</b> 自動出現在繳交看板。點文字可以修改。</div>';
   var known = {};
@@ -893,6 +910,14 @@ function renderDiaryScreen() {
 function fitDiary() {
   var root = document.documentElement;
   root.classList.add('display-mode');
+  var portrait = window.innerWidth < 760 && window.innerWidth < window.innerHeight;
+  root.classList.toggle('dd-portrait', portrait);
+  if (portrait) {   // 手機直向：固定字級、整頁捲動
+    root.style.fontSize = Math.min(17, window.innerWidth / 24).toFixed(2) + 'px';
+    var all = document.querySelectorAll('.dd-label,.dd-list');
+    for (var q = 0; q < all.length; q++) all[q].style.fontSize = '';
+    return;
+  }
   root.style.fontSize = (window.innerHeight / 54 * Math.max(userZoom, 0.8)).toFixed(2) + 'px';
   var cap = { '自動': 0.07, '大': 0.055, '中': 0.045, '小': 0.035 };
   // 科目名稱：在色塊內盡量放大（最大約為畫面高度的 9%），名稱長的會自動換行或縮小
@@ -942,6 +967,7 @@ var userZoom = 1;   // 老師手動微調的倍率（0.5～1），存在這台�
 try { var z = parseFloat(localStorage.getItem('displayZoom')); if (z >= 0.5 && z <= 1) userZoom = z; } catch (e) {}
 
 function fitDisplay() {
+  document.documentElement.classList.remove('dd-portrait');
   var root = document.documentElement;
   var wrap = document.querySelector('.d-wrap');
   if (!wrap) return;
@@ -1139,6 +1165,138 @@ function renderDisplay() {
 
 
 
+
+/* ---------- 家長版聯絡簿圖片：在手機上畫成一張 PNG，可直接分享到 LINE 或存到相簿 ---------- */
+var IMG_FONT = '"PingFang TC","Noto Sans TC","Microsoft JhengHei","Heiti TC",sans-serif';
+function wrapText(ctx, text, maxW) {
+  var tokens = String(text).match(/[A-Za-z0-9.\-\/+%~]+|\s+|[\s\S]/g) || [];
+  var lines = [], cur = '';
+  tokens.forEach(function (tk) {
+    if (ctx.measureText(cur + tk).width <= maxW || !cur) {
+      if (ctx.measureText(tk).width > maxW) {           // 超長英數字串逐字切
+        for (var i = 0; i < tk.length; i++) {
+          if (ctx.measureText(cur + tk[i]).width > maxW && cur) { lines.push(cur); cur = ''; }
+          cur += tk[i];
+        }
+      } else cur += tk;
+    } else { lines.push(cur.replace(/\s+$/, '')); cur = tk.replace(/^\s+/, ''); }
+  });
+  if (cur.trim()) lines.push(cur);
+  return lines.length ? lines : [''];
+}
+function roundRect(ctx, x, y, w, hgt, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + hgt, r); ctx.arcTo(x + w, y + hgt, x, y + hgt, r);
+  ctx.arcTo(x, y + hgt, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function drawDiaryImage() {
+  var W = 1080, P = 48, LBL = 230, GAP = 22;
+  var blocks = state.blocks.filter(function (b) { return b.show; }).map(function (b) {
+    return { b: b, items: state.items.filter(function (it) { return it.block === b.name; }) };
+  }).filter(function (x) { return x.items.length; });
+  var cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+  var textX = P + LBL + 34, numW = 52, textW = W - P - 34 - textX - numW;
+  // 先量高度
+  var layout = blocks.map(function (x) {
+    var rows = x.items.map(function (it) {
+      var exam = EXAM_RE.test(it.text);
+      ctx.font = (exam ? '900 ' : '700 ') + '40px ' + IMG_FONT;
+      var lines = wrapText(ctx, it.text, textW - (exam ? 96 : 0));
+      return { it: it, exam: exam, lines: lines, h: lines.length * 54 + 14 };
+    });
+    var inner = rows.reduce(function (s, r) { return s + r.h; }, 0) + 36;
+    // 科目名稱：先在「・、／」處分行，太寬就縮小字級（46 → 32px），仍放不下才逐字換行
+    var parts = x.b.name.split(/[・、\/]/).filter(Boolean), fs = 46, lblLines;
+    for (; fs >= 32; fs -= 2) {
+      ctx.font = '900 ' + fs + 'px ' + IMG_FONT;
+      if (parts.every(function (s) { return ctx.measureText(s).width <= LBL - 36; })) break;
+    }
+    fs = Math.max(fs, 32); ctx.font = '900 ' + fs + 'px ' + IMG_FONT;
+    lblLines = [].concat.apply([], parts.map(function (s) { return wrapText(ctx, s, LBL - 36); }));
+    return { b: x.b, rows: rows, h: Math.max(inner, lblLines.length * (fs + 12) + 40, 110), lbl: lblLines, fs: fs };
+  });
+  var announce = state.announce ? (ctx.font = '700 36px ' + IMG_FONT, wrapText(ctx, state.announce, W - P * 2 - 60)) : null;
+  var H = P + 150 + (announce ? announce.length * 50 + 44 + GAP : 0) +
+    layout.reduce(function (s, l) { return s + l.h + GAP; }, 0) + (layout.length ? 0 : 160) + 26;
+  cv.width = W; cv.height = H;
+  ctx.fillStyle = '#F2F3F5'; ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'alphabetic';
+  // 標題
+  ctx.fillStyle = '#16181D'; ctx.font = '900 68px ' + IMG_FONT;
+  ctx.fillText(state.className + ' 聯絡簿', P, P + 64);
+  ctx.font = '700 40px ' + IMG_FONT; ctx.fillStyle = '#4A505C';
+  var sub = niceDate(date) + ' ' + weekday(date);
+  ctx.fillText(sub, P, P + 124);
+  var wn = weekNo(date);
+  if (wn) {
+    var sx = P + ctx.measureText(sub).width + 22, label = '第 ' + wn + ' 週';
+    ctx.font = '900 36px ' + IMG_FONT; var ww = ctx.measureText(label).width + 32;
+    ctx.fillStyle = '#2453C2'; roundRect(ctx, sx, P + 86, ww, 52, 12); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(label, sx + 16, P + 125);
+  }
+  var y = P + 150;
+  if (announce) {
+    var ah = announce.length * 50 + 44;
+    ctx.fillStyle = '#FFF4D6'; roundRect(ctx, P, y, W - P * 2, ah, 22); ctx.fill();
+    ctx.fillStyle = '#7A4A00'; ctx.font = '700 36px ' + IMG_FONT;
+    announce.forEach(function (ln, i) { ctx.fillText(ln, P + 30, y + 58 + i * 50); });
+    y += ah + GAP;
+  }
+  if (!layout.length) {
+    ctx.fillStyle = '#6B7280'; ctx.font = '700 40px ' + IMG_FONT; ctx.fillText('這一天沒有聯絡簿內容', P, y + 80);
+  }
+  layout.forEach(function (l) {
+    var c = l.b.color;
+    ctx.save(); roundRect(ctx, P, y, W - P * 2, l.h, 26); ctx.clip();
+    ctx.fillStyle = '#fff'; ctx.fillRect(P, y, W - P * 2, l.h);
+    ctx.fillStyle = c; ctx.fillRect(P, y, LBL, l.h);
+    ctx.restore();
+    ctx.fillStyle = '#fff'; ctx.font = '900 ' + l.fs + 'px ' + IMG_FONT; ctx.textAlign = 'center';
+    var lh = l.fs + 12, ly = y + l.h / 2 - (l.lbl.length - 1) * lh / 2 + l.fs * 0.35;
+    l.lbl.forEach(function (ln, i) { ctx.fillText(ln, P + LBL / 2, ly + i * lh); });
+    ctx.textAlign = 'left';
+    var ry = y + 18 + Math.max(0, (l.h - 36 - l.rows.reduce(function (s, r) { return s + r.h; }, 0)) / 2);
+    l.rows.forEach(function (r, i) {
+      ctx.fillStyle = c + '22'; ctx.beginPath(); ctx.arc(textX + 20, ry + 34, 22, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = c; ctx.font = '900 28px ' + IMG_FONT; ctx.textAlign = 'center'; ctx.fillText(String(i + 1), textX + 20, ry + 44); ctx.textAlign = 'left';
+      var tx = textX + numW;
+      if (r.exam) {
+        ctx.fillStyle = '#F2B84B'; roundRect(ctx, tx, ry + 12, 84, 44, 10); ctx.fill();
+        ctx.fillStyle = '#4A3000'; ctx.font = '900 28px ' + IMG_FONT; ctx.fillText('考試', tx + 14, ry + 44);
+        tx += 96;
+      }
+      ctx.fillStyle = r.exam ? '#7A3510' : '#16181D'; ctx.font = (r.exam ? '900 ' : '700 ') + '40px ' + IMG_FONT;
+      r.lines.forEach(function (ln, k) { ctx.fillText(ln, tx, ry + 48 + k * 54); });
+      ry += r.h;
+    });
+    y += l.h + GAP;
+  });
+  return cv;
+}
+var diaryImgBlob = null;
+function openDiaryImage() {
+  var cv = drawDiaryImage();
+  cv.toBlob(function (blob) {
+    diaryImgBlob = blob;
+    var url = URL.createObjectURL(blob);
+    var canShare = false;
+    try { canShare = !!(navigator.canShare && navigator.canShare({ files: [new File([blob], 'x.png', { type: 'image/png' })] })); } catch (e) {}
+    openModal('<h2>家長版聯絡簿圖片</h2>' +
+      '<img src="' + url + '" alt="' + esc(niceDate(date)) + ' 聯絡簿圖片" style="width:100%;border-radius:12px;border:1px solid var(--line)">' +
+      (canShare ? '<button class="btn btn-blue" style="width:100%" onclick="shareDiaryImage()">分享（傳到 LINE／儲存到照片）</button>' : '') +
+      '<a class="btn ' + (canShare ? 'btn-line' : 'btn-blue') + '" style="width:100%;text-align:center;text-decoration:none;box-sizing:border-box" href="' + url + '" download="' + diaryImgName() + '">下載圖片</a>' +
+      '<p style="margin:0;color:var(--muted);font-size:13px;line-height:1.7">iPhone：按「分享」後選 LINE 傳到群組，或選「儲存影像」存到照片，再到 LINE 群組相簿上傳。</p>' +
+      '<div class="dialog-actions"><button class="btn btn-line" onclick="closeModal()">關閉</button></div>');
+  }, 'image/png');
+}
+function diaryImgName() { return '聯絡簿_' + date + '.png'; }
+function shareDiaryImage() {
+  if (!diaryImgBlob) return;
+  var f = new File([diaryImgBlob], diaryImgName(), { type: 'image/png' });
+  navigator.share({ files: [f], title: state.className + ' ' + niceDate(date) + ' 聯絡簿' }).catch(function (e) {
+    if (e && e.name !== 'AbortError') toast('分享失敗，請改用「下載圖片」');
+  });
+}
+
 /* ---------- 課表與目前節次 ---------- */
 function hm(t) { var p = t.split(':'); return +p[0] * 60 + +p[1]; }
 /** 依現在時間算出：正在上哪一節、下一節是什麼。不是今天、停課、週末或沒有課表時回傳 null */
@@ -1168,7 +1326,7 @@ function ttInner() {
   var p = periodNow();
   if (!p || (p.mode !== 'break' && p.mode !== 'before')) return '';   // 只在下課（含第一節前）顯示
   return '<div class="tt-now"><span class="tt-tag brk">' + (p.mode === 'before' ? '還沒上課' : '下課') + '</span>' +
-    '<span class="tt-sub" style="font-size:.7em">下一節</span>' + esc(p.next.name) + ' ' + subjHtml(p.next.subj) +
+    '<span class="tt-sub" style="font-size:.7em">下一節</span>' + (p.next.subj.indexOf(p.next.name) === 0 ? '' : esc(p.next.name) + ' ') + subjHtml(p.next.subj) +
     '<span class="tt-sub">' + p.next.start + ' 上課</span></div>';
 }
 function ttStrip() { var x = ttInner(); return x ? '<div class="tt-strip" id="tt-strip">' + x + '</div>' : ''; }
@@ -1295,20 +1453,36 @@ function gateHtml() {
   if (!CONFIG_OK) return wrap('<p style="margin:0;color:var(--muted);line-height:1.7">還沒有設定 Firebase。請打開 <code>firebase-config.js</code>，貼上 Firebase 專案的設定後再重新整理。</p>');
   if (!authChecked) return wrap('<p style="margin:0;color:var(--muted)">載入中…</p>');
   if (!authUser) return wrap('<p style="margin:0;color:var(--muted);line-height:1.7">請用老師的 Google 帳號登入。<br>這台裝置登入一次後就會記住。</p>' +
-    '<button class="btn btn-blue" style="width:100%" onclick="signIn()">用 Google 帳號登入</button>');
+    '<button class="btn btn-blue" style="width:100%" onclick="signIn()">用 Google 帳號登入</button>' +
+    '<p style="margin:0;color:var(--muted);font-size:13px;line-height:1.7">手機請用 <b>Safari</b> 或 <b>Chrome</b> 直接開啟這個網址。<br>從 LINE、Claude 等 App 裡點開的內建瀏覽器無法登入。</p>' +
+    (signInFailed ? '<div style="background:var(--miss-bg,#FDECEC);border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.7;text-align:left">' +
+      '這個瀏覽器無法完成 Google 登入。請按下方按鈕複製網址，再貼到 Safari 或 Chrome 開啟；也可以按右下角「⋯」選「在 Safari 中打開」。</div>' +
+      '<button class="btn btn-line" style="width:100%" onclick="copyUrl()">複製網址</button>' : ''));
   if (denied) return wrap('<p style="margin:0;line-height:1.7">目前登入的是 <b>' + esc(authUser.email || '') + '</b>，<br>這個帳號沒有權限使用這個看板。</p>' +
     '<p style="margin:0;color:var(--muted);font-size:14px;line-height:1.7">請改用老師的帳號登入；如果這就是老師的帳號，請確認 Firebase 資料庫規則裡的 email 寫的是它。</p>' +
     '<button class="btn btn-dark" style="width:100%" onclick="signOut()">登出，換一個帳號</button>');
   return '';
 }
+/* 只用彈出視窗登入：GitHub Pages 與 Firebase 登入頁不同網域，改用跳轉登入在 iPhone 與 App 內建瀏覽器會出現
+   「Unable to save initial state」而失敗，所以不再跳轉，改為提示用 Safari／Chrome 開啟 */
+var signInFailed = false;
 function signIn() {
   var p = new firebase.auth.GoogleAuthProvider();
   p.setCustomParameters({ prompt: 'select_account' });
   firebase.auth().signInWithPopup(p).catch(function (e) {
-    if (e && /popup-blocked|operation-not-supported|popup-closed-by-user/.test(e.code || '')) {
-      if (e.code !== 'auth/popup-closed-by-user') firebase.auth().signInWithRedirect(p);
-    } else toast(errMsg(e));
+    var code = (e && e.code) || '';
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+    if (/popup-blocked|operation-not-supported|web-storage-unsupported|internal-error|network-request-failed/.test(code)) {
+      signInFailed = true; render(); return;
+    }
+    toast(errMsg(e));
   });
+}
+function copyUrl() {
+  var url = location.href.split('#')[0];
+  var done = function () { toast('已複製網址，請貼到 Safari 或 Chrome 開啟'); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { prompt('請複製這個網址', url); });
+  else prompt('請複製這個網址', url);
 }
 function signOut() { firebase.auth().signOut().then(function () { location.reload(); }); }
 
